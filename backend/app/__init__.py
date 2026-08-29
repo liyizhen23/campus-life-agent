@@ -1,0 +1,2 @@
+"""Campus life recommendation service."""
+

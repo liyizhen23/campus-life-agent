@@ -1,0 +1,407 @@
+version: 0.6.0
+kind: app
+app:
+  description: 基于实时位置、高德 POI 和实际路线的吃喝玩乐推荐 Chatflow
+  icon: 🧭
+  icon_background: '#DDEEDB'
+  icon_type: emoji
+  mode: advanced-chat
+  name: 附近吃喝玩乐推荐
+  use_icon_as_answer_icon: true
+dependencies: []
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: 我会结合你的实时位置、预算、口味和实际路线推荐附近吃喝玩乐。试试问“人均 60，步行 20 分钟内的晚餐”。
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions:
+    - 推荐附近人均50元以内的晚餐
+    - 附近适合学习聊天的咖啡店
+    - 安排一个吃饭加游玩的三小时路线
+    suggested_questions_after_answer:
+      enabled: true
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: parameter-extractor
+      id: start-extract
+      source: start
+      sourceHandle: source
+      target: extract
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: parameter-extractor
+        targetType: code
+      id: extract-normalize
+      source: extract
+      sourceHandle: source
+      target: normalize
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: normalize-http
+      source: normalize
+      sourceHandle: source
+      target: recommend
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: http-answer-llm
+      source: recommend
+      sourceHandle: source
+      target: explain
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: answer
+      id: llm-answer
+      source: explain
+      sourceHandle: source
+      target: answer
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: H5 通过 Dify API 注入浏览器定位；定位失败时由后端使用清华大学默认坐标
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 经度
+          default: ''
+          hint: ''
+          max_length: 32
+          options: []
+          required: false
+          type: text-input
+          variable: longitude
+        - label: 纬度
+          default: ''
+          hint: ''
+          max_length: 32
+          options: []
+          required: false
+          type: text-input
+          variable: latitude
+        - label: 坐标系
+          default: gps
+          hint: ''
+          max_length: 16
+          options:
+          - gps
+          - autonavi
+          required: false
+          type: select
+          variable: coordinate_system
+        - label: 定位精度
+          default: ''
+          hint: ''
+          max_length: 32
+          options: []
+          required: false
+          type: text-input
+          variable: location_accuracy
+        - label: 默认位置名称
+          default: 清华大学
+          hint: ''
+          max_length: 64
+          options: []
+          required: false
+          type: text-input
+          variable: fallback_location_name
+      height: 220
+      id: start
+      position: {x: 80, y: 280}
+      positionAbsolute: {x: 80, y: 280}
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: 从自然语言提取推荐条件；缺失字段由下一节点设置默认值
+        instruction: |
+          从用户当前消息中提取附近吃喝玩乐推荐条件。
+          categories 只能优先使用：美食、餐厅、咖啡、购物、娱乐、电影、景点、公园。
+          transport 只能是 walking 或 driving，未明确时用 walking。
+          radius_meters 根据“步行多少分钟”等表述合理换算，未明确时留空。
+          不要猜测用户没有表达的预算和偏好。
+        memory: null
+        model:
+          completion_params:
+            temperature: 0.1
+          mode: chat
+          name: deepseek-v4-flash
+          provider: langgenius/deepseek/deepseek
+        parameters:
+        - description: 地点大类数组
+          name: categories
+          required: false
+          type: array[string]
+        - description: 用户明确给出的店名、菜系、活动等搜索关键词
+          name: keywords
+          required: false
+          type: array[string]
+        - description: 辣、安静、适合拍照等软偏好
+          name: preferences
+          required: false
+          type: array[string]
+        - description: 人均预算，人民币数字
+          name: budget_per_person
+          required: false
+          type: number
+        - description: 搜索半径，米
+          name: radius_meters
+          required: false
+          type: number
+        - description: walking 或 driving
+          name: transport
+          required: false
+          type: string
+        query:
+        - sys
+        - query
+        reasoning_mode: prompt
+        selected: false
+        title: 提取推荐条件
+        type: parameter-extractor
+        vision:
+          enabled: false
+      height: 198
+      id: extract
+      position: {x: 380, y: 280}
+      positionAbsolute: {x: 380, y: 280}
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: |
+          import json
+
+          def main(longitude, latitude, coordinate_system, categories, keywords,
+                   preferences, budget_per_person, radius_meters, transport):
+              def as_list(value, fallback=None):
+                  if isinstance(value, list):
+                      return [str(x).strip() for x in value if str(x).strip()]
+                  if isinstance(value, str) and value.strip():
+                      return [x.strip() for x in value.replace('，', ',').split(',') if x.strip()]
+                  return fallback or []
+
+              try:
+                  radius = int(float(radius_meters)) if radius_meters else 3000
+              except (TypeError, ValueError):
+                  radius = 3000
+              radius = min(10000, max(100, radius))
+              mode = transport if transport in ('walking', 'driving') else 'walking'
+              body = {
+                  'longitude': float(longitude),
+                  'latitude': float(latitude),
+                  'coordinate_system': coordinate_system or 'gps',
+                  'categories': as_list(categories, ['美食']),
+                  'keywords': as_list(keywords),
+                  'preferences': as_list(preferences),
+                  'budget_per_person': float(budget_per_person) if budget_per_person else None,
+                  'radius_meters': radius,
+                  'transport': mode,
+                  'result_count': 3,
+              }
+              return {'request_body': json.dumps(body, ensure_ascii=False)}
+        code_language: python3
+        desc: 设置默认值并生成后端所需 JSON
+        outputs:
+          request_body:
+            children: null
+            type: string
+        selected: false
+        title: 标准化请求
+        type: code
+        variables:
+        - value_selector: [start, longitude]
+          variable: longitude
+        - value_selector: [start, latitude]
+          variable: latitude
+        - value_selector: [start, coordinate_system]
+          variable: coordinate_system
+        - value_selector: [extract, categories]
+          variable: categories
+        - value_selector: [extract, keywords]
+          variable: keywords
+        - value_selector: [extract, preferences]
+          variable: preferences
+        - value_selector: [extract, budget_per_person]
+          variable: budget_per_person
+        - value_selector: [extract, radius_meters]
+          variable: radius_meters
+        - value_selector: [extract, transport]
+          variable: transport
+      height: 198
+      id: normalize
+      position: {x: 680, y: 280}
+      positionAbsolute: {x: 680, y: 280}
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data:
+          - id: body
+            key: ''
+            type: text
+            value: '{{#normalize.request_body#}}'
+          type: raw-text
+        desc: 调用公开部署的高德服务网关
+        headers: |-
+          Content-Type: application/json
+          X-Internal-Token: {{#env.INTERNAL_API_TOKEN#}}
+        method: post
+        params: ''
+        retry_config:
+          max_retries: 2
+          retry_enabled: true
+          retry_interval: 500
+        selected: false
+        ssl_verify: true
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 30
+          max_write_timeout: 10
+        title: 高德附近推荐
+        type: http-request
+        url: '{{#env.BACKEND_BASE_URL#}}/api/recommendations'
+        variables: []
+      height: 160
+      id: recommend
+      position: {x: 980, y: 280}
+      positionAbsolute: {x: 980, y: 280}
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 只根据高德与后端结构化结果生成可读推荐
+        model:
+          completion_params:
+            temperature: 0.25
+          mode: chat
+          name: deepseek-v4-flash
+          provider: langgenius/deepseek/deepseek
+        prompt_template:
+        - role: system
+          text: |
+            你是谨慎、实用的本地生活推荐助手。只能依据“推荐接口数据”陈述地点、评分、价格、距离、路线耗时和标签，不得补造。
+            返回 3 个以内的方案。每个方案包含：名称、推荐理由、已知人均、实际路线距离/耗时、地址、导航链接。
+            缺失信息明确写“暂无数据”；不要把缺失评分当作低分。末尾简短列出 warnings。
+            导航链接必须原样使用 navigation_url，并写成 Markdown 链接：[打开高德导航](URL)。
+        - role: user
+          text: |
+            用户需求：{{#sys.query#}}
+
+            推荐接口数据：
+            {{#recommend.body#}}
+        selected: false
+        title: 生成推荐说明
+        type: llm
+        vision:
+          enabled: false
+      height: 180
+      id: explain
+      position: {x: 1280, y: 280}
+      positionAbsolute: {x: 1280, y: 280}
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#explain.text#}}'
+        desc: ''
+        selected: false
+        title: 回复
+        type: answer
+        variables: []
+      height: 100
+      id: answer
+      position: {x: 1580, y: 280}
+      positionAbsolute: {x: 1580, y: 280}
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport: {x: 0, y: 0, zoom: 0.7}
+  rag_pipeline_variables: []

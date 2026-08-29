@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#14532d" />
+    <title>附近吃喝玩乐</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">CAMPUS LIFE GUIDE</p>
+          <h1>附近吃喝玩乐</h1>
+        </div>
+        <button id="locationButton" class="location-button" type="button">
+          <span class="pulse"></span>
+          <span id="locationLabel">正在定位</span>
+        </button>
+      </header>
+
+      <section id="messages" class="messages" aria-live="polite">
+        <article class="message assistant">
+          <div class="avatar">游</div>
+          <div class="bubble">
+            <p>告诉我你想吃什么、预算和可用时间，我会结合当前位置与实际路线推荐。</p>
+            <p class="hint">例如：两个人，人均 80，想吃辣的，步行 20 分钟内。</p>
+          </div>
+        </article>
+      </section>
+
+      <section class="quick-prompts" aria-label="快捷提问">
+        <button type="button" data-prompt="推荐附近人均50元以内、步行20分钟内的晚餐">便宜晚餐</button>
+        <button type="button" data-prompt="附近有什么适合聊天学习的咖啡店？">咖啡学习</button>
+        <button type="button" data-prompt="帮我安排一个吃饭加游玩的三小时路线">吃饭＋游玩</button>
+      </section>
+
+      <form id="composer" class="composer">
+        <textarea
+          id="queryInput"
+          rows="1"
+          maxlength="2000"
+          placeholder="想吃什么、预算多少、准备走多远？"
+          aria-label="输入推荐需求"
+        ></textarea>
+        <button id="sendButton" type="submit" aria-label="发送">发送</button>
+      </form>
+      <p class="privacy-note">定位仅用于本次附近搜索。路线、价格和营业信息可能变化，请以商家及高德地图为准。</p>
+    </main>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
+
