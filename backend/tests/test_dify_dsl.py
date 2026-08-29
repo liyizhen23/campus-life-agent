@@ -14,6 +14,12 @@ def test_dify_dsl_uses_current_canvas_shape():
     assert dsl["app"]["mode"] == "advanced-chat"
     assert dsl["workflow"]["rag_pipeline_variables"] == []
 
+    features = dsl["workflow"]["features"]
+    assert features["opening_statement"] == ""
+    assert features["suggested_questions"] == []
+    assert features["suggested_questions_after_answer"]["enabled"] is False
+    assert "fileUploadConfig" not in features["file_upload"]
+
     environment_variables = {
         variable["name"]: variable
         for variable in dsl["workflow"]["environment_variables"]
