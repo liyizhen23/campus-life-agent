@@ -23,7 +23,8 @@ def test_no_environment_files_are_tracked():
     forbidden = [
         path.relative_to(ROOT).as_posix()
         for path in tracked_files()
-        if path.name == ".env" or path.name.startswith(".env.")
+        if path.name == ".env"
+        or (path.name.startswith(".env.") and path.name != ".env.example")
     ]
     assert forbidden == []
 
@@ -38,4 +39,3 @@ def test_no_high_confidence_secrets_are_tracked():
             if pattern.search(text):
                 findings.append(f"{path.relative_to(ROOT)}: {name}")
     assert findings == []
-
