@@ -28,8 +28,9 @@ class RecommendationRequest(BaseModel):
     radius_meters: int = Field(default=3000, ge=100, le=10000)
     transport: TransportMode = "walking"
     result_count: int = Field(default=3, ge=1, le=5)
+    duration_minutes: int | None = Field(default=None, ge=15, le=1440)
 
-    @field_validator("categories", "keywords", "preferences", mode="before")
+    @field_validator("keywords", "preferences", mode="before")
     @classmethod
     def normalize_string_lists(cls, value: object) -> object:
         if value is None or value == "":
@@ -37,6 +38,30 @@ class RecommendationRequest(BaseModel):
         if isinstance(value, str):
             return [part.strip() for part in value.replace("，", ",").split(",") if part.strip()]
         return value
+
+    @field_validator("categories", mode="before")
+    @classmethod
+    def normalize_categories(cls, value: object) -> object:
+        if value is None or value == "":
+            return []
+        if isinstance(value, str):
+            value = [part.strip() for part in value.replace("，", ",").split(",") if part.strip()]
+        if not isinstance(value, list):
+            return value
+
+        aliases = {
+            "吃饭": ["美食"],
+            "餐饮": ["美食"],
+            "游玩": ["景点", "娱乐", "公园"],
+            "玩乐": ["景点", "娱乐", "公园"],
+        }
+        normalized: list[str] = []
+        for item in value:
+            text = str(item).strip()
+            for category in aliases.get(text, [text]):
+                if category and category not in normalized:
+                    normalized.append(category)
+        return normalized
 
 
 class PlaceRecommendation(BaseModel):
@@ -46,6 +71,9 @@ class PlaceRecommendation(BaseModel):
     address: str
     longitude: float
     latitude: float
+    group: Literal["dining", "activity", "other"] = "other"
+    route_from: str = "当前位置"
+    route_status: Literal["available", "straight_line_only"] = "straight_line_only"
     straight_distance_meters: int | None = None
     route_distance_meters: int | None = None
     route_duration_minutes: int | None = None
@@ -56,10 +84,21 @@ class PlaceRecommendation(BaseModel):
     navigation_url: str
 
 
+class ItinerarySegment(BaseModel):
+    from_name: str
+    to_name: str
+    transport: TransportMode
+    route_status: Literal["available", "straight_line_only"]
+    route_distance_meters: int | None = None
+    route_duration_minutes: int | None = None
+    straight_distance_meters: int | None = None
+
+
 class RecommendationResponse(BaseModel):
     origin: dict[str, float | str]
     transport: TransportMode
     radius_meters: int
+    duration_minutes: int | None = None
     places: list[PlaceRecommendation]
+    itinerary: list[ItinerarySegment] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-

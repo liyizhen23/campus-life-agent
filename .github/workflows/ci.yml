@@ -24,4 +24,5 @@ jobs:
         with:
           node-version: '22'
           package-manager-cache: false
-      - run: node --check frontend/app.js
+      - run: node --check frontend/app.js && node --check frontend/markdown.js
+      - run: node --test frontend/markdown.test.js

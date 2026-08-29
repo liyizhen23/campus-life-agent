@@ -52,22 +52,10 @@ const locationButton = document.querySelector("#locationButton");
 const locationLabel = document.querySelector("#locationLabel");
 const welcomeMessage = messages.firstElementChild.cloneNode(true);
 
-function escapeHtml(value) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
+const { escapeHtml, renderMarkdown } = window.NearbyGoMarkdown;
 
 function formatAnswer(value) {
-  let html = escapeHtml(value);
-  html = html.replace(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  return html
-    .split(/\n{2,}/)
-    .map((block) => `<p>${block.replaceAll("\n", "<br>")}</p>`)
-    .join("");
+  return renderMarkdown(value);
 }
 
 function stripReasoning(value) {
@@ -275,6 +263,11 @@ input.addEventListener("keydown", (event) => {
 
 document.querySelectorAll("[data-prompt]").forEach((button) => {
   button.addEventListener("click", () => sendQuery(button.dataset.prompt));
+});
+messages.addEventListener("click", (event) => {
+  const link = event.target.closest("a[data-amap-navigation]");
+  if (!link || !/MicroMessenger/i.test(navigator.userAgent)) return;
+  window.alert("微信内可能无法直接唤起高德 App；若停留在当前页，请使用右上角菜单选择“在浏览器打开”。");
 });
 locationButton.addEventListener("click", locate);
 clearChatButton.addEventListener("click", clearChatMemory);

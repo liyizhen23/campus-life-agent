@@ -134,6 +134,30 @@ h1 { margin: 0; color: var(--green); font-size: clamp(26px, 6vw, 38px); }
 .bubble p:last-child { margin-bottom: 0; }
 .bubble .hint { color: #748077; font-size: 13px; }
 .bubble a { color: #176b3a; font-weight: 700; text-underline-offset: 3px; }
+.bubble h1, .bubble h2, .bubble h3 { margin: 0 0 9px; color: #183c28; line-height: 1.35; }
+.bubble h1 { font-size: 1.32em; }
+.bubble h2 { font-size: 1.2em; }
+.bubble h3 { font-size: 1.08em; }
+.bubble ul, .bubble ol { margin: 0 0 10px; padding-left: 1.45em; }
+.bubble li + li { margin-top: 4px; }
+.bubble blockquote {
+  margin: 8px 0 10px;
+  padding: 7px 10px;
+  border-left: 3px solid #5f8d6d;
+  border-radius: 0 8px 8px 0;
+  background: #edf3ec;
+  color: #486151;
+}
+.bubble .amap-navigation {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 11px;
+  border-radius: 10px;
+  background: #e1efe3;
+  border: 1px solid rgba(23, 107, 58, 0.22);
+  text-decoration: none;
+}
 .typing::after { content: "● ● ●"; color: #78917f; letter-spacing: 3px; animation: blink 1.2s infinite; }
 
 @keyframes blink { 50% { opacity: 0.35; } }

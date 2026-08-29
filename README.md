@@ -13,9 +13,9 @@
 - 浏览器本地保存最近 12 轮对话，可随时清空且不保存定位
 - GPS → 高德坐标转换
 - 高德周边 POI 搜索
-- Top 候选步行/驾车路线计算
+- 餐饮与游玩分组检索，复合需求按“当前位置 → 餐饮 → 游玩”分段计算路线
 - 预算、距离、偏好和评分的确定性排序
-- 高德一键导航链接
+- 安全 Markdown 渲染与高德一键导航链接（移动端优先尝试唤起 App）
 - Dify Chatflow DSL 和配置文档
 
 ## 所需凭据
@@ -74,6 +74,7 @@ uvicorn app.main:app --reload --port 8000
   "budget_per_person": 80,
   "radius_meters": 3000,
   "transport": "walking",
+  "duration_minutes": 180,
   "result_count": 3
 }
 ```

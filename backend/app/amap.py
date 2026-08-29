@@ -6,7 +6,15 @@ import httpx
 
 
 class AmapError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, operation: str = "", code: str = "") -> None:
+        super().__init__(message)
+        self.operation = operation
+        self.code = code
+
+    @property
+    def public_detail(self) -> str:
+        suffix = f"（错误码 {self.code}）" if self.code else ""
+        return f"{self.args[0]}{suffix}"
 
 
 class AmapClient:
@@ -18,15 +26,28 @@ class AmapClient:
 
     async def _get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
         if not self.api_key:
-            raise AmapError("AMAP_WEB_SERVICE_KEY 尚未配置")
-        response = await self.http.get(
-            f"{self.base_url}{path}",
-            params={**params, "key": self.api_key, "output": "JSON"},
-        )
-        response.raise_for_status()
-        payload = response.json()
+            raise AmapError("AMAP_WEB_SERVICE_KEY 尚未配置", operation=path)
+        try:
+            response = await self.http.get(
+                f"{self.base_url}{path}",
+                params={**params, "key": self.api_key, "output": "JSON"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except httpx.HTTPStatusError as exc:
+            raise AmapError(
+                "高德服务暂时不可用",
+                operation=path,
+                code=f"HTTP_{exc.response.status_code}",
+            ) from exc
+        except (httpx.HTTPError, ValueError) as exc:
+            raise AmapError("高德服务网络或响应异常", operation=path) from exc
         if str(payload.get("status")) != "1":
-            raise AmapError(payload.get("info") or "高德 API 调用失败")
+            raise AmapError(
+                str(payload.get("info") or "高德 API 调用失败"),
+                operation=path,
+                code=str(payload.get("infocode") or ""),
+            )
         return payload
 
     async def convert_location(
@@ -86,10 +107,9 @@ class AmapClient:
         route = payload.get("route") or {}
         paths = route.get("paths") or []
         if not paths:
-            return None
+            raise AmapError("未返回可用路线", operation=path, code="NO_ROUTE")
         first = paths[0]
         return {
             "distance": int(float(first.get("distance") or 0)),
             "duration": int(float(first.get("duration") or 0)),
         }
-

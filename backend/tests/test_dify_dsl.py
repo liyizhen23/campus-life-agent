@@ -38,3 +38,42 @@ def test_dify_dsl_uses_current_canvas_shape():
     for variable in code_node["data"]["variables"]:
         assert variable["value_selector"]
         assert "value" not in variable
+
+
+def test_normalizer_preserves_meal_and_activity_intent_and_duration():
+    dsl = yaml.safe_load(DSL_PATH.read_text(encoding="utf-8"))
+    graph = dsl["workflow"]["graph"]
+    code_node = next(node for node in graph["nodes"] if node["id"] == "normalize")
+    namespace = {}
+    exec(code_node["data"]["code"], namespace)
+
+    output = namespace["main"](
+        query="帮我安排一个吃饭加游玩的三小时路线",
+        longitude="116.326",
+        latitude="40.003",
+        coordinate_system="gps",
+        categories=["美食"],
+        keywords=[],
+        preferences=[],
+        budget_per_person=None,
+        radius_meters=None,
+        transport="walking",
+        duration_minutes=None,
+    )
+    import json
+
+    body = json.loads(output["request_body"])
+    assert "美食" in body["categories"]
+    assert {"景点", "娱乐", "公园"}.intersection(body["categories"])
+    assert body["duration_minutes"] == 180
+
+
+def test_explanation_prompt_requires_valid_markdown_and_honest_route_fallback():
+    dsl = yaml.safe_load(DSL_PATH.read_text(encoding="utf-8"))
+    graph = dsl["workflow"]["graph"]
+    explain = next(node for node in graph["nodes"] if node["id"] == "explain")
+    system_prompt = explain["data"]["prompt_template"][0]["text"]
+
+    assert "完整、规范的 Markdown" in system_prompt
+    assert "straight_line_only" in system_prompt
+    assert "不得输出思考过程" in system_prompt
