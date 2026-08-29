@@ -48,6 +48,24 @@ button, textarea { font: inherit; }
 
 h1 { margin: 0; color: var(--green); font-size: clamp(26px, 6vw, 38px); }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.clear-chat-button {
+  border: 0;
+  background: transparent;
+  color: #647369;
+  padding: 9px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.clear-chat-button:disabled { opacity: 0.45; cursor: wait; }
+
 .location-button {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -171,8 +189,9 @@ textarea {
 @media (max-width: 540px) {
   .app-shell { padding-left: 12px; padding-right: 12px; }
   .topbar { align-items: center; }
-  .location-button { max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-actions { flex-direction: column-reverse; align-items: flex-end; gap: 2px; }
+  .location-button { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+  .clear-chat-button { padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
   .messages { max-height: none; }
   .bubble { max-width: 88%; }
 }
-

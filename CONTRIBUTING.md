@@ -28,8 +28,8 @@
 
 ## Dify DSL 注意事项
 
-- 当前 DSL 版本为 `0.6.0`。
-- `environment_variables` 必须保持为空数组；变量和值只在 Dify Cloud 中手工配置。
+- 当前 DSL 版本为 `0.7.0`。
+- DSL 可以保留环境变量定义和公开的后端地址，但 `INTERNAL_API_TOKEN` 等秘密值必须为空。
 - Code 节点输入必须使用 `value_selector`，不能使用旧的 `value` 字段。
 - 禁止将环境变量真实值或模型凭据导出到仓库。
 - 提交前运行 `backend/tests/test_dify_dsl.py`。

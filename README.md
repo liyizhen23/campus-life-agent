@@ -9,6 +9,8 @@
 - 移动端 H5 聊天页面
 - 浏览器实时定位与定位授权状态提示
 - Dify Cloud SSE 流式聊天代理，避免前端泄露 Dify Key
+- Dify reasoning 双层过滤，只向页面展示最终答案
+- 浏览器本地保存最近 12 轮对话，可随时清空且不保存定位
 - GPS → 高德坐标转换
 - 高德周边 POI 搜索
 - Top 候选步行/驾车路线计算
@@ -18,7 +20,7 @@
 
 ## 所需凭据
 
-真实 Key 和任何 `.env*` 文件都不得提交到 Git。请使用 Dify、部署平台或服务器的 Secret 管理功能保存：
+真实 Key 和本地 `.env` 文件不得提交到 Git。仓库中的 `.env.example` 只提供变量名和非敏感默认值；请使用 Dify、部署平台或服务器的 Secret 管理功能保存真实凭据：
 
 1. Dify Cloud Chatflow 应用 API Key
 2. 高德开放平台 **Web 服务 API Key**
@@ -30,9 +32,12 @@
 ## 本地启动
 
 ```bash
-# 在仓库外或本机创建仅自己可见的 .env；仓库不会提供或跟踪环境文件。
+# 每位开发者首次运行时复制模板，并在 .env 中填写自己的真实凭据。
+cp .env.example .env
 docker compose up --build
 ```
+
+Docker Compose 会自动读取仓库根目录的 `.env`。至少填写 `DIFY_API_KEY`、`AMAP_WEB_SERVICE_KEY` 和 `INTERNAL_API_TOKEN`；其中 `INTERNAL_API_TOKEN` 必须与 Dify Chatflow 中的同名变量一致。`.env` 已被 Git 忽略，不得强制提交。
 
 打开 `http://localhost:8000`。浏览器精确定位在生产环境需要 HTTPS；localhost 通常可用于本地开发。
 
@@ -48,7 +53,7 @@ uvicorn app.main:app --reload --port 8000
 
 ## Dify 配置
 
-按照 [dify/SETUP.md](dify/SETUP.md) 导入 DSL、配置 DeepSeek，并在 Dify Cloud 中手工新建两个 Chatflow 环境变量。DSL 不包含任何环境变量定义或值。
+按照 [dify/SETUP.md](dify/SETUP.md) 导入 DSL、配置 DeepSeek，并在 Dify Cloud 中检查两个 Chatflow 环境变量。DSL 包含公开后端地址和空的 Token 占位符，不包含真实秘密值。
 
 ## 关键接口
 

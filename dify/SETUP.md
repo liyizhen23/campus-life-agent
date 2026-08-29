@@ -13,7 +13,7 @@
 
 在 Dify Studio 选择 **Import DSL file**，导入 `dify/nearby-go-chatflow.yml`。
 
-DSL 已按当前 Dify `0.6.0` 导出结构整理。导入后检查以下五个节点：
+DSL 已按当前 Dify `0.7.0` 导出结构整理。导入后检查以下五个节点：
 
 1. 开始
 2. 提取推荐条件
@@ -25,12 +25,12 @@ DSL 已按当前 Dify `0.6.0` 导出结构整理。导入后检查以下五个�
 
 ## 3. 配置 Chatflow 环境变量
 
-DSL 文件故意不携带环境变量定义或值。导入完成后，在 Dify Cloud 的 Chatflow 环境变量面板中手工新建并填写：
+DSL 携带两个环境变量的定义，其中公网后端地址使用项目默认值，内部 Token 保持为空。导入完成后，在 Dify Cloud 的 Chatflow 环境变量面板中检查并填写：
 
 - `BACKEND_BASE_URL`：本项目部署后的公网 HTTPS 地址，不要以 `/` 结尾。
 - `INTERNAL_API_TOKEN`：与服务器 `.env` 中同名变量完全一致。
 
-不得将填写后的 DSL 再导出并直接提交到 GitHub；提交前必须确认 `environment_variables: []`。
+不得将真实 Token 写入仓库。重新导出 DSL 后，提交前必须确认 `INTERNAL_API_TOKEN` 的 `value` 为空；`BACKEND_BASE_URL` 可以保留公开的 HTTPS 地址。
 
 Dify Cloud 无法访问 `localhost`，因此测试“高德附近推荐”节点前，后端必须先部署到公网 HTTPS 地址。
 

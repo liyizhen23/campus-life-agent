@@ -1,17 +1,38 @@
-version: 0.6.0
-kind: app
 app:
   description: 基于实时位置、高德 POI 和实际路线的吃喝玩乐推荐 Chatflow
   icon: 🧭
   icon_background: '#DDEEDB'
   icon_type: emoji
   mode: advanced-chat
-  name: 附近发现 · NearbyGo
+  name: 附近吃喝玩乐推荐
   use_icon_as_answer_icon: true
-dependencies: []
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/deepseek:0.0.20@850efe73fb62bbe7ab2229116086596596297a77174fb86f73e1363b99a24116
+    version: null
+kind: app
+version: 0.7.0
 workflow:
   conversation_variables: []
-  environment_variables: []
+  environment_variables:
+  - description: 公网可访问的后端地址，例如 https://guide.example.com
+    id: backend-base-url
+    name: BACKEND_BASE_URL
+    selector:
+    - env
+    - BACKEND_BASE_URL
+    value: https://nearby-go.onrender.com
+    value_type: string
+  - description: 与后端 INTERNAL_API_TOKEN 完全一致
+    id: internal-api-token
+    name: INTERNAL_API_TOKEN
+    selector:
+    - env
+    - INTERNAL_API_TOKEN
+    value: ''
+    value_type: secret
   features:
     file_upload:
       allowed_file_extensions:
@@ -32,10 +53,12 @@ workflow:
         audio_file_size_limit: 50
         batch_count_limit: 5
         file_size_limit: 15
-        file_upload_limit: 20
+        file_upload_limit: 50
         image_file_batch_limit: 10
         image_file_size_limit: 10
+        knowledge_file_size_limit: 15
         single_chunk_attachment_limit: 10
+        skill_file_size_limit: 50
         video_file_size_limit: 100
         workflow_file_upload_limit: 10
       image:
@@ -131,25 +154,25 @@ workflow:
         title: 开始
         type: start
         variables:
-        - label: 经度
-          default: ''
+        - default: ''
           hint: ''
+          label: 经度
           max_length: 32
           options: []
           required: false
           type: text-input
           variable: longitude
-        - label: 纬度
-          default: ''
+        - default: ''
           hint: ''
+          label: 纬度
           max_length: 32
           options: []
           required: false
           type: text-input
           variable: latitude
-        - label: 坐标系
-          default: gps
+        - default: gps
           hint: ''
+          label: 坐标系
           max_length: 16
           options:
           - gps
@@ -157,39 +180,49 @@ workflow:
           required: false
           type: select
           variable: coordinate_system
-        - label: 定位精度
-          default: ''
+        - default: ''
           hint: ''
+          label: 定位精度
           max_length: 32
           options: []
           required: false
           type: text-input
           variable: location_accuracy
-        - label: 默认位置名称
-          default: 清华大学
+        - default: 清华大学
           hint: ''
+          label: 默认位置名称
           max_length: 64
           options: []
           required: false
           type: text-input
           variable: fallback_location_name
-      height: 220
+      height: 256
       id: start
-      position: {x: 80, y: 280}
-      positionAbsolute: {x: 80, y: 280}
+      position:
+        x: 0
+        y: 0
+      positionAbsolute:
+        x: 0
+        y: 0
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
+      zIndex: 0
     - data:
         desc: 从自然语言提取推荐条件；缺失字段由下一节点设置默认值
-        instruction: |
-          从用户当前消息中提取附近吃喝玩乐推荐条件。
+        instruction: '从用户当前消息中提取附近吃喝玩乐推荐条件。
+
           categories 只能优先使用：美食、餐厅、咖啡、购物、娱乐、电影、景点、公园。
+
           transport 只能是 walking 或 driving，未明确时用 walking。
+
           radius_meters 根据“步行多少分钟”等表述合理换算，未明确时留空。
+
           不要猜测用户没有表达的预算和偏好。
+
+          '
         memory: null
         model:
           completion_params:
@@ -231,47 +264,39 @@ workflow:
         type: parameter-extractor
         vision:
           enabled: false
-      height: 198
+      height: 131
       id: extract
-      position: {x: 380, y: 280}
-      positionAbsolute: {x: 380, y: 280}
+      position:
+        x: 342
+        y: 105.16666666666666
+      positionAbsolute:
+        x: 342
+        y: 105.16666666666666
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
+      zIndex: 0
     - data:
-        code: |
-          import json
-
-          def main(longitude, latitude, coordinate_system, categories, keywords,
-                   preferences, budget_per_person, radius_meters, transport):
-              def as_list(value, fallback=None):
-                  if isinstance(value, list):
-                      return [str(x).strip() for x in value if str(x).strip()]
-                  if isinstance(value, str) and value.strip():
-                      return [x.strip() for x in value.replace('，', ',').split(',') if x.strip()]
-                  return fallback or []
-
-              try:
-                  radius = int(float(radius_meters)) if radius_meters else 3000
-              except (TypeError, ValueError):
-                  radius = 3000
-              radius = min(10000, max(100, radius))
-              mode = transport if transport in ('walking', 'driving') else 'walking'
-              body = {
-                  'longitude': float(longitude),
-                  'latitude': float(latitude),
-                  'coordinate_system': coordinate_system or 'gps',
-                  'categories': as_list(categories, ['美食']),
-                  'keywords': as_list(keywords),
-                  'preferences': as_list(preferences),
-                  'budget_per_person': float(budget_per_person) if budget_per_person else None,
-                  'radius_meters': radius,
-                  'transport': mode,
-                  'result_count': 3,
-              }
-              return {'request_body': json.dumps(body, ensure_ascii=False)}
+        code: "import json\n\ndef main(longitude, latitude, coordinate_system, categories,\
+          \ keywords,\n         preferences, budget_per_person, radius_meters, transport):\n\
+          \    def as_list(value, fallback=None):\n        if isinstance(value, list):\n\
+          \            return [str(x).strip() for x in value if str(x).strip()]\n\
+          \        if isinstance(value, str) and value.strip():\n            return\
+          \ [x.strip() for x in value.replace('，', ',').split(',') if x.strip()]\n\
+          \        return fallback or []\n\n    try:\n        radius = int(float(radius_meters))\
+          \ if radius_meters else 3000\n    except (TypeError, ValueError):\n    \
+          \    radius = 3000\n    radius = min(10000, max(100, radius))\n    mode\
+          \ = transport if transport in ('walking', 'driving') else 'walking'\n  \
+          \  body = {\n        'longitude': float(longitude),\n        'latitude':\
+          \ float(latitude),\n        'coordinate_system': coordinate_system or 'gps',\n\
+          \        'categories': as_list(categories, ['美食']),\n        'keywords':\
+          \ as_list(keywords),\n        'preferences': as_list(preferences),\n   \
+          \     'budget_per_person': float(budget_per_person) if budget_per_person\
+          \ else None,\n        'radius_meters': radius,\n        'transport': mode,\n\
+          \        'result_count': 3,\n    }\n    return {'request_body': json.dumps(body,\
+          \ ensure_ascii=False)}\n"
         code_language: python3
         desc: 设置默认值并生成后端所需 JSON
         outputs:
@@ -282,33 +307,56 @@ workflow:
         title: 标准化请求
         type: code
         variables:
-        - value_selector: [start, longitude]
+        - value_selector:
+          - start
+          - longitude
           variable: longitude
-        - value_selector: [start, latitude]
+        - value_selector:
+          - start
+          - latitude
           variable: latitude
-        - value_selector: [start, coordinate_system]
+        - value_selector:
+          - start
+          - coordinate_system
           variable: coordinate_system
-        - value_selector: [extract, categories]
+        - value_selector:
+          - extract
+          - categories
           variable: categories
-        - value_selector: [extract, keywords]
+        - value_selector:
+          - extract
+          - keywords
           variable: keywords
-        - value_selector: [extract, preferences]
+        - value_selector:
+          - extract
+          - preferences
           variable: preferences
-        - value_selector: [extract, budget_per_person]
+        - value_selector:
+          - extract
+          - budget_per_person
           variable: budget_per_person
-        - value_selector: [extract, radius_meters]
+        - value_selector:
+          - extract
+          - radius_meters
           variable: radius_meters
-        - value_selector: [extract, transport]
+        - value_selector:
+          - extract
+          - transport
           variable: transport
-      height: 198
+      height: 79
       id: normalize
-      position: {x: 680, y: 280}
-      positionAbsolute: {x: 680, y: 280}
+      position:
+        x: 684
+        y: 153
+      positionAbsolute:
+        x: 684
+        y: 153
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
+      zIndex: 0
     - data:
         authorization:
           config: null
@@ -321,9 +369,9 @@ workflow:
             value: '{{#normalize.request_body#}}'
           type: raw-text
         desc: 调用公开部署的高德服务网关
-        headers: |-
-          Content-Type: application/json
-          X-Internal-Token: {{#env.INTERNAL_API_TOKEN#}}
+        headers: 'Content-Type: application/json
+
+          X-Internal-Token: {{#env.INTERNAL_API_TOKEN#}}'
         method: post
         params: ''
         retry_config:
@@ -340,15 +388,20 @@ workflow:
         type: http-request
         url: '{{#env.BACKEND_BASE_URL#}}/api/recommendations'
         variables: []
-      height: 160
+      height: 168
       id: recommend
-      position: {x: 980, y: 280}
-      positionAbsolute: {x: 980, y: 280}
+      position:
+        x: 1026
+        y: 121.66666666666666
+      positionAbsolute:
+        x: 1026
+        y: 121.66666666666666
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
+      zIndex: 0
     - data:
         context:
           enabled: false
@@ -361,32 +414,48 @@ workflow:
           name: deepseek-v4-flash
           provider: langgenius/deepseek/deepseek
         prompt_template:
-        - role: system
-          text: |
-            你是谨慎、实用的本地生活推荐助手。只能依据“推荐接口数据”陈述地点、评分、价格、距离、路线耗时和标签，不得补造。
+        - id: cfcd8b51-4a48-4ee9-9982-5eb61df3213d
+          role: system
+          text: '你是谨慎、实用的本地生活推荐助手。只能依据“推荐接口数据”陈述地点、评分、价格、距离、路线耗时和标签，不得补造。
+
             返回 3 个以内的方案。每个方案包含：名称、推荐理由、已知人均、实际路线距离/耗时、地址、导航链接。
+
             缺失信息明确写“暂无数据”；不要把缺失评分当作低分。末尾简短列出 warnings。
+
             导航链接必须原样使用 navigation_url，并写成 Markdown 链接：[打开高德导航](URL)。
-        - role: user
-          text: |
-            用户需求：{{#sys.query#}}
+
+            只输出面向用户的最终答案，不得输出思考过程、分析草稿、<think> 标签或 reasoning 内容。
+
+            '
+        - id: e877896e-4ec6-49b5-b26c-2d11282f0585
+          role: user
+          text: '用户需求：{{#sys.query#}}
+
 
             推荐接口数据：
+
             {{#recommend.body#}}
+
+            '
         selected: false
         title: 生成推荐说明
         type: llm
         vision:
           enabled: false
-      height: 180
+      height: 131
       id: explain
-      position: {x: 1280, y: 280}
-      positionAbsolute: {x: 1280, y: 280}
+      position:
+        x: 1368
+        y: 168.16666666666666
+      positionAbsolute:
+        x: 1368
+        y: 168.16666666666666
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
+      zIndex: 0
     - data:
         answer: '{{#explain.text#}}'
         desc: ''
@@ -394,14 +463,22 @@ workflow:
         title: 回复
         type: answer
         variables: []
-      height: 100
+      height: 101
       id: answer
-      position: {x: 1580, y: 280}
-      positionAbsolute: {x: 1580, y: 280}
+      position:
+        x: 1710
+        y: 205
+      positionAbsolute:
+        x: 1710
+        y: 205
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
-    viewport: {x: 0, y: 0, zoom: 0.7}
+      zIndex: 0
+    viewport:
+      x: -404.48069462908643
+      y: 145.0204819966027
+      zoom: 0.9046380816309287
   rag_pipeline_variables: []

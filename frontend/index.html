@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#14532d" />
     <title>附近发现 · NearbyGo</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260829-2" />
   </head>
   <body>
     <main class="app-shell">
@@ -14,10 +14,13 @@
           <p class="eyebrow">NEARBY LIFE GUIDE</p>
           <h1>附近发现 · NearbyGo</h1>
         </div>
-        <button id="locationButton" class="location-button" type="button">
-          <span class="pulse"></span>
-          <span id="locationLabel">正在定位</span>
-        </button>
+        <div class="topbar-actions">
+          <button id="clearChatButton" class="clear-chat-button" type="button">清空对话</button>
+          <button id="locationButton" class="location-button" type="button">
+            <span class="pulse"></span>
+            <span id="locationLabel">正在定位</span>
+          </button>
+        </div>
       </header>
 
       <section id="messages" class="messages" aria-live="polite">
@@ -46,8 +49,8 @@
         ></textarea>
         <button id="sendButton" type="submit" aria-label="发送">发送</button>
       </form>
-      <p class="privacy-note">定位仅用于本次附近搜索。路线、价格和营业信息可能变化，请以商家及高德地图为准。</p>
+      <p class="privacy-note">聊天记录仅保存在此设备浏览器，可随时清空；定位不保存。路线、价格和营业信息可能变化，请以商家及高德地图为准。</p>
     </main>
-    <script src="/app.js" defer></script>
+    <script src="/app.js?v=20260829-2" defer></script>
   </body>
 </html>

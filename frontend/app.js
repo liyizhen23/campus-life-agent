@@ -1,6 +1,43 @@
+const CHAT_MEMORY_KEY = "nearbygo-chat-memory-v1";
+const MAX_SAVED_MESSAGES = 24;
+const MAX_SAVED_MESSAGE_LENGTH = 6000;
+
+function loadChatMemory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CHAT_MEMORY_KEY) || "null");
+    if (!saved || typeof saved !== "object") return { conversationId: "", history: [] };
+
+    const history = Array.isArray(saved.history)
+      ? saved.history
+          .filter(
+            (item) =>
+              item &&
+              ["user", "assistant"].includes(item.role) &&
+              typeof item.text === "string" &&
+              item.text.trim(),
+          )
+          .slice(-MAX_SAVED_MESSAGES)
+          .map((item) => ({
+            role: item.role,
+            text: item.text.slice(0, MAX_SAVED_MESSAGE_LENGTH),
+          }))
+      : [];
+
+    return {
+      conversationId: typeof saved.conversationId === "string" ? saved.conversationId : "",
+      history,
+    };
+  } catch {
+    localStorage.removeItem(CHAT_MEMORY_KEY);
+    return { conversationId: "", history: [] };
+  }
+}
+
+const savedChat = loadChatMemory();
 const state = {
   position: null,
-  conversationId: "",
+  conversationId: savedChat.conversationId,
+  history: savedChat.history,
   user: localStorage.getItem("nearbygo-user") || crypto.randomUUID(),
   busy: false,
 };
@@ -10,8 +47,10 @@ const messages = document.querySelector("#messages");
 const composer = document.querySelector("#composer");
 const input = document.querySelector("#queryInput");
 const sendButton = document.querySelector("#sendButton");
+const clearChatButton = document.querySelector("#clearChatButton");
 const locationButton = document.querySelector("#locationButton");
 const locationLabel = document.querySelector("#locationLabel");
+const welcomeMessage = messages.firstElementChild.cloneNode(true);
 
 function escapeHtml(value) {
   return value
@@ -31,6 +70,36 @@ function formatAnswer(value) {
     .join("");
 }
 
+function stripReasoning(value) {
+  let result = value.replace(/<think\b[^>]*>[\s\S]*?<\/think\s*>/gi, "");
+
+  const openThink = result.search(/<think\b[^>]*>/i);
+  if (openThink >= 0) result = result.slice(0, openThink);
+
+  result = result.replace(
+    /<!--\s*dify-deepseek-reasoning\s*-->[\s\S]*?<!--\s*\/dify-deepseek-reasoning\s*-->/gi,
+    "",
+  );
+  const openMarker = result.search(/<!--\s*dify-deepseek-reasoning\s*-->/i);
+  if (openMarker >= 0) result = result.slice(0, openMarker);
+
+  result = result
+    .replace(/<\/?think\b[^>]*>/gi, "")
+    .replace(/<!--\s*\/?dify-deepseek-reasoning\s*-->/gi, "");
+
+  const lowered = result.toLowerCase();
+  for (const token of ["<think", "<!--dify-deepseek-reasoning"]) {
+    const maxLength = Math.min(token.length, result.length);
+    for (let length = maxLength; length > 0; length -= 1) {
+      if (lowered.endsWith(token.slice(0, length))) {
+        return result.slice(0, -length).trimStart();
+      }
+    }
+  }
+
+  return result.trimStart();
+}
+
 function addMessage(role, text = "") {
   const article = document.createElement("article");
   article.className = `message ${role}`;
@@ -48,6 +117,45 @@ function addMessage(role, text = "") {
   messages.scrollTop = messages.scrollHeight;
   return bubble;
 }
+
+function saveChatMemory() {
+  try {
+    localStorage.setItem(
+      CHAT_MEMORY_KEY,
+      JSON.stringify({
+        conversationId: state.conversationId,
+        history: state.history.slice(-MAX_SAVED_MESSAGES),
+      }),
+    );
+  } catch {
+    // Storage can be unavailable or full in private/in-app browsers.
+  }
+}
+
+function rememberTurn(query, answer) {
+  state.history.push(
+    { role: "user", text: query.slice(0, MAX_SAVED_MESSAGE_LENGTH) },
+    { role: "assistant", text: answer.slice(0, MAX_SAVED_MESSAGE_LENGTH) },
+  );
+  state.history = state.history.slice(-MAX_SAVED_MESSAGES);
+  saveChatMemory();
+}
+
+function restoreChat() {
+  if (!state.history.length) return;
+  messages.replaceChildren();
+  state.history.forEach(({ role, text }) => addMessage(role, text));
+}
+
+function clearChatMemory() {
+  if (state.busy || !window.confirm("清空当前设备上的聊天记录并开始新对话？")) return;
+  state.conversationId = "";
+  state.history = [];
+  localStorage.removeItem(CHAT_MEMORY_KEY);
+  messages.replaceChildren(welcomeMessage.cloneNode(true));
+}
+
+restoreChat();
 
 function locate() {
   locationButton.className = "location-button";
@@ -87,10 +195,12 @@ async function sendQuery(query) {
   if (state.busy || !query.trim()) return;
   state.busy = true;
   sendButton.disabled = true;
+  clearChatButton.disabled = true;
   input.value = "";
   addMessage("user", query);
   const answerBubble = addMessage("assistant", "");
   answerBubble.classList.add("typing");
+  let rawAnswer = "";
   let answer = "";
 
   try {
@@ -119,20 +229,29 @@ async function sendQuery(query) {
         const line = chunk.split("\n").find((item) => item.startsWith("data:"));
         if (!line) continue;
         const payload = JSON.parse(line.slice(5).trim());
-        answer += handleEvent(payload);
-        answerBubble.classList.remove("typing");
-        answerBubble.innerHTML = formatAnswer(answer);
+        rawAnswer += handleEvent(payload);
+        answer = stripReasoning(rawAnswer);
+        if (answer) {
+          answerBubble.classList.remove("typing");
+          answerBubble.innerHTML = formatAnswer(answer);
+        }
         messages.scrollTop = messages.scrollHeight;
       }
       if (done) break;
     }
-    if (!answer) answerBubble.innerHTML = "<p>暂时没有取得推荐，请稍后重试。</p>";
+    if (!answer) {
+      answerBubble.classList.remove("typing");
+      answerBubble.innerHTML = "<p>暂时没有取得推荐，请稍后重试。</p>";
+    } else {
+      rememberTurn(query, answer);
+    }
   } catch (error) {
     answerBubble.classList.remove("typing");
     answerBubble.innerHTML = `<p>请求失败：${escapeHtml(error.message)}</p>`;
   } finally {
     state.busy = false;
     sendButton.disabled = false;
+    clearChatButton.disabled = false;
     input.focus();
   }
 }
@@ -158,4 +277,5 @@ document.querySelectorAll("[data-prompt]").forEach((button) => {
   button.addEventListener("click", () => sendQuery(button.dataset.prompt));
 });
 locationButton.addEventListener("click", locate);
+clearChatButton.addEventListener("click", clearChatMemory);
 locate();

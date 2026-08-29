@@ -10,10 +10,19 @@ def test_dify_dsl_uses_current_canvas_shape():
     dsl = yaml.safe_load(DSL_PATH.read_text(encoding="utf-8"))
     graph = dsl["workflow"]["graph"]
 
-    assert dsl["version"] == "0.6.0"
+    assert dsl["version"] == "0.7.0"
     assert dsl["app"]["mode"] == "advanced-chat"
-    assert dsl["workflow"]["environment_variables"] == []
     assert dsl["workflow"]["rag_pipeline_variables"] == []
+
+    environment_variables = {
+        variable["name"]: variable
+        for variable in dsl["workflow"]["environment_variables"]
+    }
+    assert environment_variables["BACKEND_BASE_URL"]["value"] == (
+        "https://nearby-go.onrender.com"
+    )
+    assert environment_variables["INTERNAL_API_TOKEN"]["value"] == ""
+    assert environment_variables["INTERNAL_API_TOKEN"]["value_type"] == "secret"
 
     for edge in graph["edges"]:
         assert "isInIteration" in edge["data"]
