@@ -1,11 +1,13 @@
 # 附近吃喝玩乐 Agent
 
-面向清华大学起步、支持浏览器实时位置的 H5 推荐助手。H5 获取用户授权定位，后端将坐标和问题发送到 Dify Cloud Chatflow；Chatflow 调用本服务封装的高德 POI/路径接口，再由 DeepSeek 生成有依据的推荐说明。
+基于用户当前实时位置的 H5 吃喝玩乐推荐助手。H5 在获得用户授权后获取当前位置，后端将坐标和问题发送到 Dify Cloud Chatflow；Chatflow 调用本服务封装的高德 POI 与路径规划接口，再由 DeepSeek 生成有依据的附近推荐。
+
+推荐范围不绑定城市或固定地点，而是始终以用户本次定位为中心，并结合预算、距离、出行方式和个人偏好筛选餐饮、咖啡、娱乐、购物、景点等场所。
 
 ## 已包含
 
 - 移动端 H5 聊天页面
-- 浏览器实时定位与清华大学默认位置回退
+- 浏览器实时定位与定位授权状态提示
 - Dify Cloud SSE 流式聊天代理，避免前端泄露 Dify Key
 - GPS → 高德坐标转换
 - 高德周边 POI 搜索
@@ -58,9 +60,9 @@ uvicorn app.main:app --reload --port 8000
 
 ```json
 {
-  "longitude": 116.326,
-  "latitude": 40.003,
-  "coordinate_system": "autonavi",
+  "longitude": 121.4737,
+  "latitude": 31.2304,
+  "coordinate_system": "gps",
   "categories": ["美食"],
   "keywords": ["川菜"],
   "preferences": ["辣"],
