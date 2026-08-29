@@ -1,10 +1,10 @@
 const state = {
   position: null,
   conversationId: "",
-  user: localStorage.getItem("campus-agent-user") || crypto.randomUUID(),
+  user: localStorage.getItem("nearbygo-user") || crypto.randomUUID(),
   busy: false,
 };
-localStorage.setItem("campus-agent-user", state.user);
+localStorage.setItem("nearbygo-user", state.user);
 
 const messages = document.querySelector("#messages");
 const composer = document.querySelector("#composer");

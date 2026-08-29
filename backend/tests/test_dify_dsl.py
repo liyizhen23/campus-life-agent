@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 
 
-DSL_PATH = Path(__file__).resolve().parents[2] / "dify" / "campus-life-chatflow.yml"
+DSL_PATH = Path(__file__).resolve().parents[2] / "dify" / "nearby-go-chatflow.yml"
 
 
 def test_dify_dsl_uses_current_canvas_shape():

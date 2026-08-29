@@ -14,7 +14,7 @@
    ```
 
 4. 提交 Pull Request，说明改动、测试方式以及是否涉及 Dify DSL。
-5. Dify Cloud 中完成的画布修改，应重新导出 DSL，并与 `dify/campus-life-chatflow.yml` 比较后提交。
+5. Dify Cloud 中完成的画布修改，应重新导出 DSL，并与 `dify/nearby-go-chatflow.yml` 比较后提交。
 
 ## 提交约定
 

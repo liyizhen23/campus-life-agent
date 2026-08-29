@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     await app.state.http.aclose()
 
 
-app = FastAPI(title="Campus Life Agent", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="NearbyGo", version="0.1.0", lifespan=lifespan)
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,

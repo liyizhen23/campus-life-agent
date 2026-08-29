@@ -11,7 +11,7 @@
 
 ## 2. 导入 Chatflow
 
-在 Dify Studio 选择 **Import DSL file**，导入 `dify/campus-life-chatflow.yml`。
+在 Dify Studio 选择 **Import DSL file**，导入 `dify/nearby-go-chatflow.yml`。
 
 DSL 已按当前 Dify `0.6.0` 导出结构整理。导入后检查以下五个节点：
 

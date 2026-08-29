@@ -85,7 +85,7 @@ def _navigation_url(
             "to": f"{destination[0]},{destination[1]},{name}",
             "mode": "car" if mode == "driving" else "walk",
             "policy": 1,
-            "src": "campus-life-agent",
+            "src": "nearby-go",
             "callnative": 1,
         }
     )
@@ -191,4 +191,3 @@ async def build_recommendations(
         places=results[: request.result_count],
         warnings=warnings,
     )
-

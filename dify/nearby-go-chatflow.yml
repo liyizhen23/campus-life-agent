@@ -6,7 +6,7 @@ app:
   icon_background: '#DDEEDB'
   icon_type: emoji
   mode: advanced-chat
-  name: 附近吃喝玩乐推荐
+  name: 附近发现 · NearbyGo
   use_icon_as_answer_icon: true
 dependencies: []
 workflow:

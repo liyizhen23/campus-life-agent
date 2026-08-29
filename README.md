@@ -1,4 +1,4 @@
-# 附近吃喝玩乐 Agent
+# 附近发现 · NearbyGo
 
 基于用户当前实时位置的 H5 吃喝玩乐推荐助手。H5 在获得用户授权后获取当前位置，后端将坐标和问题发送到 Dify Cloud Chatflow；Chatflow 调用本服务封装的高德 POI 与路径规划接口，再由 DeepSeek 生成有依据的附近推荐。
 
