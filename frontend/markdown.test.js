@@ -30,6 +30,11 @@ test("renders the supported Markdown block and inline subset", () => {
   assert.match(html, /<blockquote><p>引用内容<\/p><\/blockquote>/);
 });
 
+test("tolerates an incomplete heading while streaming", () => {
+  assert.equal(renderMarkdown("### "), "");
+  assert.equal(renderMarkdown("### 完整标题"), "<h3>完整标题</h3>");
+});
+
 test("escapes untrusted HTML and rejects non-HTTPS links", () => {
   const html = renderMarkdown('<img src=x onerror=alert(1)> **安全** [坏链接](javascript:alert(1))');
 

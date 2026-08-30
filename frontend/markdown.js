@@ -91,6 +91,10 @@
       const kind = blockType(line);
       if (kind === "heading") {
         const match = line.match(/^(#{1,3})[ \t]+(.+?)\s*$/);
+        if (!match) {
+          index += 1;
+          continue;
+        }
         const level = match[1].length;
         blocks.push(`<h${level}>${renderInline(match[2])}</h${level}>`);
         index += 1;
