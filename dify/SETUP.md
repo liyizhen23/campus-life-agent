@@ -1,13 +1,13 @@
 # Dify Cloud 配置
 
-## 1. 配置 DeepSeek
+## 1. 配置并行智算云模型
 
 1. 登录 Dify Cloud，进入 **Plugins / 插件市场**。
-2. 安装官方/受信任的 **DeepSeek Model Provider**。
-3. 在 **Settings → Model Provider → DeepSeek** 中填写 DeepSeek API Key。
-4. 优先选择 `deepseek-v4-flash`。本场景主要是参数提取和简短说明，不需要默认使用成本更高的 Pro。
+2. 安装官方 `OpenAI-API-compatible` 模型供应商。
+3. 在 **Settings → Model Provider → OpenAI-API-compatible** 中添加 LLM，填写并行智算云 API Key 和 `https://llmapi.paratera.com`。
+4. Dify 中的显示名称使用 `DeepSeek-V4-Flash-0731`，API endpoint 模型名称使用平台实际提供的可调用别名（当前优先尝试 `deepseek-v4-flash`）。
 
-> DeepSeek 已在 2026 年将旧的 `deepseek-chat` / `deepseek-reasoner` 名称下线。本项目 DSL 使用当前的 `deepseek-v4-flash`。如果 Dify 插件的模型列表尚未刷新，请在导入后直接在两个模型节点中选择插件实际展示的最新 Flash 模型。
+> API Key 只保存在 Dify 工作区凭据中，不要写入 DSL、GitHub 或环境变量示例。如果凭据验证提示 `no healthy deployments`，先从并行智算云的模型列表确认 API endpoint 模型名称；这不是工作流节点或 Render 的错误。
 
 ## 2. 导入 Chatflow
 
@@ -21,7 +21,7 @@ DSL 已按当前 Dify `0.7.0` 导出结构整理。导入后检查以下五个�
 4. 高德附近推荐
 5. 生成推荐说明 → 回复
 
-如果 DeepSeek 模型节点显示未配置，分别重新选择 `deepseek-v4-flash`。
+如果模型节点显示未配置，分别在“提取推荐条件”和“生成推荐说明”节点中重新选择 `OpenAI-API-compatible / DeepSeek-V4-Flash-0731`。
 
 ## 3. 配置 Chatflow 环境变量
 

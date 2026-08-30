@@ -18,7 +18,14 @@ def test_dify_dsl_uses_current_canvas_shape():
     assert features["opening_statement"] == ""
     assert features["suggested_questions"] == []
     assert features["suggested_questions_after_answer"]["enabled"] is False
-    assert "fileUploadConfig" not in features["file_upload"]
+    file_upload_config = features["file_upload"]["fileUploadConfig"]
+    assert file_upload_config["attachment_image_file_size_limit"] == 2
+    assert file_upload_config["workflow_file_upload_limit"] == 10
+
+    dependency = dsl["dependencies"][0]["value"][
+        "marketplace_plugin_unique_identifier"
+    ]
+    assert dependency.startswith("langgenius/openai_api_compatible:")
 
     environment_variables = {
         variable["name"]: variable
@@ -39,6 +46,19 @@ def test_dify_dsl_uses_current_canvas_shape():
         assert "selected" in node
         assert node["data"]["title"]
         assert node["data"]["type"]
+
+    model_nodes = [
+        node["data"]["model"]
+        for node in graph["nodes"]
+        if "model" in node["data"]
+    ]
+    assert model_nodes
+    assert all(
+        model["provider"]
+        == "langgenius/openai_api_compatible/openai_api_compatible"
+        for model in model_nodes
+    )
+    assert all(model["name"] == "DeepSeek-V4-Flash-0731" for model in model_nodes)
 
     code_node = next(node for node in graph["nodes"] if node["data"]["type"] == "code")
     for variable in code_node["data"]["variables"]:
