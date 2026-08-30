@@ -246,7 +246,6 @@ async def test_multi_day_plan_has_daily_meals_activities_and_full_time_budgets()
             latitude=40.003,
             coordinate_system="autonavi",
             categories=["景点"],
-            duration_days=2,
             duration_minutes=960,
             result_count=8,
         ),

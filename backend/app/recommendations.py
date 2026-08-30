@@ -195,24 +195,37 @@ async def _search_group(
     return _prepare_candidates(collected, request, group)
 
 
-def _total_available_minutes(request: RecommendationRequest, is_itinerary: bool) -> int | None:
+def _effective_day_count(request: RecommendationRequest) -> int:
+    if request.duration_days > 1:
+        return request.duration_days
+    if request.duration_minutes and request.duration_minutes > 720:
+        return min(7, max(2, (request.duration_minutes + 240) // 480))
+    return 1
+
+
+def _total_available_minutes(
+    request: RecommendationRequest, is_itinerary: bool, day_count: int
+) -> int | None:
     if request.duration_minutes is not None:
         return request.duration_minutes
-    if request.duration_days > 1:
-        return request.duration_days * 480
+    if day_count > 1:
+        return day_count * 480
     if is_itinerary:
         return 240
     return None
 
 
 def _desired_result_count(
-    request: RecommendationRequest, total_minutes: int | None, is_itinerary: bool
+    request: RecommendationRequest,
+    total_minutes: int | None,
+    is_itinerary: bool,
+    day_count: int,
 ) -> int:
     target = request.result_count
-    if request.duration_days > 1:
-        daily_minutes = (total_minutes or request.duration_days * 480) / request.duration_days
+    if day_count > 1:
+        daily_minutes = (total_minutes or day_count * 480) / day_count
         stops_per_day = max(3, min(4, math.ceil(daily_minutes / 120)))
-        target = max(target, request.duration_days * stops_per_day)
+        target = max(target, day_count * stops_per_day)
     elif is_itinerary and total_minutes:
         target = max(target, min(5, max(2, math.ceil(total_minutes / 60))))
     return min(20, target)
@@ -385,8 +398,9 @@ async def build_recommendations(
     origin = await amap.convert_location(
         request.longitude, request.latitude, request.coordinate_system
     )
+    effective_day_count = _effective_day_count(request)
     categories = list(request.categories or ["美食"])
-    if request.duration_days > 1:
+    if effective_day_count > 1:
         if not any(category in DINING_CATEGORIES for category in categories):
             categories.append("美食")
         if not any(category in ACTIVITY_CATEGORIES for category in categories):
@@ -401,8 +415,12 @@ async def build_recommendations(
     requested_itinerary = bool(
         categories_by_group["dining"] and categories_by_group["activity"]
     )
-    total_available = _total_available_minutes(request, requested_itinerary)
-    target_count = _desired_result_count(request, total_available, requested_itinerary)
+    total_available = _total_available_minutes(
+        request, requested_itinerary, effective_day_count
+    )
+    target_count = _desired_result_count(
+        request, total_available, requested_itinerary, effective_day_count
+    )
     candidates_by_group: dict[str, list[dict[str, Any]]] = {
         "dining": [],
         "activity": [],
@@ -429,7 +447,7 @@ async def build_recommendations(
         meal = candidates_by_group["dining"][0]
         activity_center = (
             origin
-            if request.duration_days > 1
+            if effective_day_count > 1
             else (meal["_lng"], meal["_lat"])
         )
 
@@ -458,8 +476,10 @@ async def build_recommendations(
     if requested_itinerary and not candidates_by_group["activity"]:
         warnings.append("未找到可用游玩候选，当前行程无法完整覆盖吃喝与游玩。")
 
-    plan_requested = bool(total_available is not None or request.duration_days > 1 or requested_itinerary)
-    planning_day_count = request.duration_days if plan_requested else 1
+    plan_requested = bool(
+        total_available is not None or effective_day_count > 1 or requested_itinerary
+    )
+    planning_day_count = effective_day_count if plan_requested else 1
     candidate_days = _select_day_candidates(
         candidates_by_group, target_count, planning_day_count, origin
     )
@@ -657,7 +677,7 @@ async def build_recommendations(
         transport=request.transport,
         radius_meters=request.radius_meters,
         duration_minutes=total_available,
-        duration_days=request.duration_days,
+        duration_days=effective_day_count,
         total_planned_minutes=total_planned,
         total_travel_minutes=total_travel,
         total_visit_minutes=total_visit,
