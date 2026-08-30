@@ -8,6 +8,7 @@ test("renders the supported Markdown block and inline subset", () => {
     "# 一级",
     "## 二级",
     "### **三级**",
+    "#### 详细步骤",
     "",
     "普通段落  ",
     "换行",
@@ -19,15 +20,19 @@ test("renders the supported Markdown block and inline subset", () => {
     "2. 有序二",
     "",
     "> 引用内容",
+    "",
+    "---",
   ].join("\n"));
 
   assert.match(html, /<h1>一级<\/h1>/);
   assert.match(html, /<h2>二级<\/h2>/);
   assert.match(html, /<h3><strong>三级<\/strong><\/h3>/);
+  assert.match(html, /<h3>详细步骤<\/h3>/);
   assert.match(html, /<p>普通段落  <br>换行<\/p>/);
   assert.match(html, /<ul><li>无序一<\/li><li><strong>无序二<\/strong><\/li><\/ul>/);
   assert.match(html, /<ol><li>有序一<\/li><li>有序二<\/li><\/ol>/);
   assert.match(html, /<blockquote><p>引用内容<\/p><\/blockquote>/);
+  assert.match(html, /<hr>/);
 });
 
 test("tolerates an incomplete heading while streaming", () => {

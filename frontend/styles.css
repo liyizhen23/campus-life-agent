@@ -148,6 +148,7 @@ h1 { margin: 0; color: var(--green); font-size: clamp(26px, 6vw, 38px); }
   background: #edf3ec;
   color: #486151;
 }
+.bubble hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
 .bubble .amap-navigation {
   display: inline-flex;
   align-items: center;

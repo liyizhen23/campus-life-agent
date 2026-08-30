@@ -69,7 +69,8 @@
   }
 
   function blockType(line) {
-    if (/^#{1,3}[ \t]+/.test(line)) return "heading";
+    if (/^#{1,6}[ \t]+/.test(line)) return "heading";
+    if (/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/.test(line)) return "horizontal_rule";
     if (/^>[ \t]?/.test(line)) return "quote";
     if (/^[ \t]*[-+*][ \t]+/.test(line)) return "unordered";
     if (/^[ \t]*\d+\.[ \t]+/.test(line)) return "ordered";
@@ -90,13 +91,19 @@
 
       const kind = blockType(line);
       if (kind === "heading") {
-        const match = line.match(/^(#{1,3})[ \t]+(.+?)\s*$/);
+        const match = line.match(/^(#{1,6})[ \t]+(.+?)\s*$/);
         if (!match) {
           index += 1;
           continue;
         }
-        const level = match[1].length;
+        const level = Math.min(match[1].length, 3);
         blocks.push(`<h${level}>${renderInline(match[2])}</h${level}>`);
+        index += 1;
+        continue;
+      }
+
+      if (kind === "horizontal_rule") {
+        blocks.push("<hr>");
         index += 1;
         continue;
       }
