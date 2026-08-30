@@ -15,9 +15,9 @@ def test_dify_dsl_uses_current_canvas_shape():
     assert dsl["workflow"]["rag_pipeline_variables"] == []
 
     features = dsl["workflow"]["features"]
-    assert features["opening_statement"] == ""
-    assert features["suggested_questions"] == []
-    assert features["suggested_questions_after_answer"]["enabled"] is False
+    assert "NearbyGo" in features["opening_statement"]
+    assert len(features["suggested_questions"]) >= 4
+    assert features["suggested_questions_after_answer"]["enabled"] is True
     file_upload_config = features["file_upload"]["fileUploadConfig"]
     assert file_upload_config["attachment_image_file_size_limit"] == 2
     assert file_upload_config["workflow_file_upload_limit"] == 10
@@ -64,6 +64,27 @@ def test_dify_dsl_uses_current_canvas_shape():
     for variable in code_node["data"]["variables"]:
         assert variable["value_selector"]
         assert "value" not in variable
+
+    assert [(edge["source"], edge["target"]) for edge in graph["edges"]] == [
+        ("start", "extract"),
+        ("extract", "normalize"),
+        ("normalize", "recommend"),
+        ("recommend", "validate"),
+        ("validate", "explain"),
+        ("explain", "answer"),
+    ]
+
+    extractor = next(node for node in graph["nodes"] if node["id"] == "extract")
+    parameter_names = {item["name"] for item in extractor["data"]["parameters"]}
+    assert {
+        "avoid_terms",
+        "companion_profile",
+        "dietary_needs",
+        "accessibility_needs",
+        "ambience",
+        "decision_priority",
+        "plan_mode",
+    }.issubset(parameter_names)
 
 
 def test_normalizer_preserves_meal_and_activity_intent_and_duration():
@@ -160,3 +181,86 @@ def test_explanation_prompt_requires_valid_markdown_and_honest_route_fallback():
     assert "像实用旅行攻略" in system_prompt
     assert "不能自行增删" in system_prompt
     assert "不得输出思考过程" in system_prompt
+    assert "constraint_conflicts" in system_prompt
+    assert "quick_pick" in system_prompt
+    assert "compare" in system_prompt
+    assert "Plan B" in system_prompt
+
+
+def test_normalizer_builds_personalized_context_and_safe_location_fallback():
+    dsl = yaml.safe_load(DSL_PATH.read_text(encoding="utf-8"))
+    graph = dsl["workflow"]["graph"]
+    code_node = next(node for node in graph["nodes"] if node["id"] == "normalize")
+    namespace = {}
+    exec(code_node["data"]["code"], namespace)
+
+    output = namespace["main"](
+        query="带老人步行10分钟内找安静的晚餐，不要太辣",
+        longitude="",
+        latitude="",
+        coordinate_system="gps",
+        categories=["美食"],
+        keywords=[],
+        preferences=["安静"],
+        budget_per_person=80,
+        radius_meters=None,
+        transport="walking",
+        duration_minutes=None,
+        duration_days=1,
+        avoid_terms=["太辣"],
+        companion_profile=["老人"],
+        accessibility_needs=["少走路"],
+        ambience=["安静"],
+        decision_priority="nearest",
+        plan_mode="quick_pick",
+        fallback_location_name="清华大学",
+    )
+
+    import json
+
+    body = json.loads(output["request_body"])
+    context = json.loads(output["request_context"])
+    assert body["longitude"] == 116.326
+    assert body["latitude"] == 40.003
+    assert body["radius_meters"] == 800
+    assert body["duration_minutes"] is None
+    assert {"安静", "老人", "少走路"}.issubset(body["preferences"])
+    assert context["location_source"] == "fallback"
+    assert context["avoid_terms"] == ["太辣"]
+    assert context["decision_priority"] == "nearest"
+
+
+def test_result_auditor_handles_service_errors_and_constraint_conflicts():
+    dsl = yaml.safe_load(DSL_PATH.read_text(encoding="utf-8"))
+    graph = dsl["workflow"]["graph"]
+    code_node = next(node for node in graph["nodes"] if node["id"] == "validate")
+    namespace = {}
+    exec(code_node["data"]["code"], namespace)
+
+    import json
+
+    failed = namespace["main"]("not-json", 503, "{}")
+    assert failed["response_state"] == "service_error"
+
+    audited = namespace["main"](
+        json.dumps(
+            {
+                "places": [
+                    {
+                        "name": "热辣火锅",
+                        "category": "餐饮服务",
+                        "address": "示例路",
+                        "tags": ["辣"],
+                    }
+                ],
+                "itinerary_days": [],
+                "warnings": [],
+            },
+            ensure_ascii=False,
+        ),
+        200,
+        json.dumps({"avoid_terms": ["辣"], "plan_mode": "quick_pick"}, ensure_ascii=False),
+    )
+    result = json.loads(audited["validated_result"])
+    assert audited["response_state"] == "needs_caution"
+    assert result["constraint_conflicts"][0]["place_name"] == "热辣火锅"
