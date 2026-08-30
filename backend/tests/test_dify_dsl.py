@@ -85,6 +85,7 @@ def test_normalizer_preserves_meal_and_activity_intent_and_duration():
         radius_meters=None,
         transport="walking",
         duration_minutes=None,
+        duration_days=None,
     )
     import json
 
@@ -92,6 +93,58 @@ def test_normalizer_preserves_meal_and_activity_intent_and_duration():
     assert "美食" in body["categories"]
     assert {"景点", "娱乐", "公园"}.intersection(body["categories"])
     assert body["duration_minutes"] == 180
+    assert body["duration_days"] == 1
+    assert body["result_count"] == 3
+
+
+def test_normalizer_builds_active_time_budget_and_stop_count_for_multi_day_trip():
+    dsl = yaml.safe_load(DSL_PATH.read_text(encoding="utf-8"))
+    graph = dsl["workflow"]["graph"]
+    code_node = next(node for node in graph["nodes"] if node["id"] == "normalize")
+    namespace = {}
+    exec(code_node["data"]["code"], namespace)
+
+    output = namespace["main"](
+        query="安排一个三天两夜的游玩攻略",
+        longitude="116.326",
+        latitude="40.003",
+        coordinate_system="gps",
+        categories=["景点"],
+        keywords=[],
+        preferences=[],
+        budget_per_person=None,
+        radius_meters=None,
+        transport="walking",
+        duration_minutes=None,
+        duration_days=None,
+    )
+    import json
+
+    body = json.loads(output["request_body"])
+    assert body["duration_days"] == 3
+    assert body["duration_minutes"] == 3 * 480
+    assert body["result_count"] == 12
+    assert "美食" in body["categories"]
+    assert "景点" in body["categories"]
+
+    weekend = namespace["main"](
+        query="两天一夜的附近吃喝游玩攻略，每天约8小时",
+        longitude="116.326",
+        latitude="40.003",
+        coordinate_system="gps",
+        categories=["美食", "景点"],
+        keywords=[],
+        preferences=[],
+        budget_per_person=None,
+        radius_meters=None,
+        transport="walking",
+        duration_minutes=None,
+        duration_days=None,
+    )
+    weekend_body = json.loads(weekend["request_body"])
+    assert weekend_body["duration_days"] == 2
+    assert weekend_body["duration_minutes"] == 2 * 480
+    assert weekend_body["result_count"] == 8
 
 
 def test_explanation_prompt_requires_valid_markdown_and_honest_route_fallback():
@@ -102,4 +155,8 @@ def test_explanation_prompt_requires_valid_markdown_and_honest_route_fallback():
 
     assert "完整、规范的 Markdown" in system_prompt
     assert "straight_line_only" in system_prompt
+    assert "total_planned_minutes" in system_prompt
+    assert "itinerary_days" in system_prompt
+    assert "像实用旅行攻略" in system_prompt
+    assert "不能自行增删" in system_prompt
     assert "不得输出思考过程" in system_prompt

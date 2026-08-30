@@ -27,8 +27,9 @@ class RecommendationRequest(BaseModel):
     budget_per_person: float | None = Field(default=None, ge=0, le=100000)
     radius_meters: int = Field(default=3000, ge=100, le=10000)
     transport: TransportMode = "walking"
-    result_count: int = Field(default=3, ge=1, le=5)
-    duration_minutes: int | None = Field(default=None, ge=15, le=1440)
+    result_count: int = Field(default=3, ge=1, le=20)
+    duration_minutes: int | None = Field(default=None, ge=15, le=10080)
+    duration_days: int = Field(default=1, ge=1, le=7)
 
     @field_validator("keywords", "preferences", mode="before")
     @classmethod
@@ -85,6 +86,8 @@ class PlaceRecommendation(BaseModel):
 
 
 class ItinerarySegment(BaseModel):
+    day_number: int = 1
+    sequence: int = 1
     from_name: str
     to_name: str
     transport: TransportMode
@@ -92,6 +95,32 @@ class ItinerarySegment(BaseModel):
     route_distance_meters: int | None = None
     route_duration_minutes: int | None = None
     straight_distance_meters: int | None = None
+    planning_duration_minutes: int
+    planning_duration_is_estimate: bool = False
+
+
+class ItineraryStop(BaseModel):
+    day_number: int
+    sequence: int
+    place_id: str
+    name: str
+    group: Literal["dining", "activity", "other"]
+    arrival_offset_minutes: int
+    departure_offset_minutes: int
+    suggested_stay_minutes: int
+    planning_basis: str
+    segment: ItinerarySegment
+
+
+class ItineraryDay(BaseModel):
+    day_number: int
+    theme: str
+    available_minutes: int
+    planned_minutes: int
+    travel_minutes: int
+    visit_minutes: int
+    flexible_minutes: int
+    stops: list[ItineraryStop] = Field(default_factory=list)
 
 
 class RecommendationResponse(BaseModel):
@@ -99,6 +128,13 @@ class RecommendationResponse(BaseModel):
     transport: TransportMode
     radius_meters: int
     duration_minutes: int | None = None
+    duration_days: int = 1
+    total_planned_minutes: int | None = None
+    total_travel_minutes: int | None = None
+    total_visit_minutes: int | None = None
+    total_flexible_minutes: int | None = None
     places: list[PlaceRecommendation]
     itinerary: list[ItinerarySegment] = Field(default_factory=list)
+    itinerary_days: list[ItineraryDay] = Field(default_factory=list)
+    planning_assumptions: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)

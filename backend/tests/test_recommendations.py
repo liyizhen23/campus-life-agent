@@ -122,6 +122,13 @@ async def test_meal_and_activity_are_searched_separately_and_form_segmented_itin
 
     assert [place.group for place in result.places] == ["dining", "activity"]
     assert result.duration_minutes == 180
+    assert result.total_planned_minutes == 180
+    assert result.total_travel_minutes == 24
+    assert result.total_visit_minutes > result.total_travel_minutes
+    assert result.itinerary_days[0].planned_minutes == 180
+    assert sum(
+        stop.suggested_stay_minutes for stop in result.itinerary_days[0].stops
+    ) == result.itinerary_days[0].visit_minutes
     assert amap.searches[0][0] == (116.327, 40.004)
     assert amap.searches[1][0] == (116.33, 40.01)
     assert result.itinerary[0].from_name == "当前位置"
@@ -159,13 +166,20 @@ async def test_route_failure_keeps_place_and_labels_straight_line_fallback():
             raise AmapError("USER_DAILY_QUERY_OVER_LIMIT", operation="route", code="10044")
 
     result = await build_recommendations(
-        RecommendationRequest(longitude=116.326, latitude=40.003), RouteFailureAmap()
+        RecommendationRequest(
+            longitude=116.326,
+            latitude=40.003,
+            duration_minutes=90,
+        ),
+        RouteFailureAmap(),
     )
 
     assert result.places
     assert result.places[0].route_status == "straight_line_only"
     assert result.places[0].route_distance_meters is None
-    assert result.places[0].straight_distance_meters == 600
+    assert result.places[0].straight_distance_meters > 0
+    assert result.itinerary[0].planning_duration_is_estimate is True
+    assert result.itinerary_days[0].planned_minutes == 90
     assert "直线距离不是实际路线" in result.warnings[-1]
     assert "10044" in result.warnings[-1]
 
@@ -182,3 +196,69 @@ async def test_empty_search_returns_warning():
 
     assert result.places == []
     assert "扩大范围" in result.warnings[0]
+
+
+@pytest.mark.asyncio
+async def test_multi_day_plan_has_daily_meals_activities_and_full_time_budgets():
+    dining = [
+        {
+            "id": f"food-{index}",
+            "name": f"第{index}餐厅",
+            "type": "餐饮服务;中餐厅",
+            "address": f"餐饮路{index}号",
+            "location": f"{116.330 + index * 0.001:.6f},{40.010 + index * 0.001:.6f}",
+            "distance": str(400 + index * 80),
+            "biz_ext": {"rating": "4.5", "cost": "50"},
+        }
+        for index in range(1, 5)
+    ]
+    activities = [
+        {
+            "id": f"play-{index}",
+            "name": f"第{index}游玩点",
+            "type": "风景名胜;公园广场;公园",
+            "address": f"游玩路{index}号",
+            "location": f"{116.340 + index * 0.001:.6f},{40.020 + index * 0.001:.6f}",
+            "distance": str(500 + index * 90),
+            "biz_ext": {"rating": "4.6"},
+        }
+        for index in range(1, 9)
+    ]
+
+    class MultiDayAmap(FakeAmap):
+        async def search_around(self, longitude, latitude, **kwargs):
+            self.searches.append(((longitude, latitude), kwargs))
+            types = kwargs["types"]
+            return (
+                activities
+                if any(item.startswith(("08", "11", "06")) for item in types)
+                else dining
+            )
+
+        async def route(self, origin, destination, mode):
+            self.routes.append((origin, destination, mode))
+            return {"distance": 700, "duration": 600}
+
+    amap = MultiDayAmap()
+    result = await build_recommendations(
+        RecommendationRequest(
+            longitude=116.326,
+            latitude=40.003,
+            coordinate_system="autonavi",
+            categories=["景点"],
+            duration_days=2,
+            duration_minutes=960,
+            result_count=8,
+        ),
+        amap,
+    )
+
+    assert len(result.itinerary_days) == 2
+    assert len(result.places) == 8
+    assert result.total_planned_minutes == 960
+    assert all(day.planned_minutes == 480 for day in result.itinerary_days)
+    assert all({stop.group for stop in day.stops} == {"dining", "activity"} for day in result.itinerary_days)
+    assert all(day.visit_minutes > day.travel_minutes for day in result.itinerary_days)
+    assert amap.routes[0][0] == (116.327, 40.004)
+    assert amap.routes[4][0] == (116.327, 40.004)
+    assert "每天从当前位置重新出发" in result.planning_assumptions[-1]

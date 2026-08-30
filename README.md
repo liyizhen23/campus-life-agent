@@ -14,6 +14,8 @@
 - GPS → 高德坐标转换
 - 高德周边 POI 搜索
 - 餐饮与游玩分组检索，复合需求按“当前位置 → 餐饮 → 游玩”分段计算路线
+- 按总时间预算分配交通、用餐、游玩和机动时间，避免把短途步行当作完整行程
+- 支持最多 7 天的分日攻略；每天包含主题、相对时间段、逐站停留建议和路线衔接
 - 预算、距离、偏好和评分的确定性排序
 - 安全 Markdown 渲染与高德一键导航链接（移动端优先尝试唤起 App）
 - Dify Chatflow DSL 和配置文档
@@ -68,16 +70,19 @@ uvicorn app.main:app --reload --port 8000
   "longitude": 121.4737,
   "latitude": 31.2304,
   "coordinate_system": "gps",
-  "categories": ["美食"],
+  "categories": ["美食", "景点", "公园"],
   "keywords": ["川菜"],
   "preferences": ["辣"],
   "budget_per_person": 80,
   "radius_meters": 3000,
   "transport": "walking",
   "duration_minutes": 180,
+  "duration_days": 1,
   "result_count": 3
 }
 ```
+
+行程响应中的实时路线耗时与建议停留时间严格区分：路线字段来自高德；`itinerary_days` 中的停留时长是根据用户总时间预算和地点类别生成的规划建议。开放时间、门票、预约、排队、住宿和现场活动不在当前数据源内，不会被当作已知事实。
 
 ## 安全边界
 
