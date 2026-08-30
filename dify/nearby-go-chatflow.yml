@@ -15,7 +15,15 @@ dependencies:
 kind: app
 version: 0.7.0
 workflow:
-  conversation_variables: []
+  conversation_variables:
+  - description: 用户明确授权记住的稳定偏好；仅在当前 Dify 会话中保存，开始新对话即清空
+    id: 77b87a96-0df3-4a66-a410-c865da8f4537
+    name: user_profile
+    selector:
+    - conversation
+    - user_profile
+    value: '{"version":1,"preferences":[],"avoid_terms":[],"dietary_needs":[],"accessibility_needs":[],"companion_profile":[],"notes":[]}'
+    value_type: string
   environment_variables:
   - description: 公网可访问的后端地址，例如 https://guide.example.com
     id: backend-base-url
@@ -73,6 +81,8 @@ workflow:
 
       告诉我你想吃什么、玩什么，或直接说可用时间、预算、同行人和氛围偏好。我会基于你本次定位与可核实的高德地点/路线数据，给出主选、备选或可执行行程。
 
+      我会结合最近对话理解“还是上次那样”；只有你明确说“记住……”时才保存长期偏好，也可以随时说“忘记……”或“清空长期偏好”。
+
       定位只用于本次附近检索；营业时间、门票、排队与现场活动仍建议出发前核实。
     retriever_resource:
       enabled: false
@@ -110,8 +120,32 @@ workflow:
         isInLoop: false
         sourceType: parameter-extractor
         targetType: code
-      id: extract-normalize
+      id: extract-memory-merge
       source: extract
+      sourceHandle: source
+      target: memory_merge
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: assigner
+      id: memory-merge-assign
+      source: memory_merge
+      sourceHandle: source
+      target: remember
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: code
+      id: remember-normalize
+      source: remember
       sourceHandle: source
       target: normalize
       targetHandle: target
@@ -229,8 +263,12 @@ workflow:
       width: 242
       zIndex: 0
     - data:
-        desc: 提取地点、预算、时间、同行人、体验偏好与显式避雷项
-        instruction: '你是附近探索需求分析器。只提取用户当前消息明确表达或可确定换算的条件，不得把常识猜测成用户偏好。
+        desc: 结合短期对话提取本次需求，并识别用户明确授权的长期记忆操作
+        instruction: '你是附近探索需求分析器。你可以看到最近对话作为短期记忆，但必须区分“用户当前消息”“历史上下文”和“需要长期保存的稳定画像”。
+
+          本次需求字段优先取用户当前消息。只有当前消息出现“还是上次那样、预算不变、同样的、继续刚才”等明确承接表达时，才可从最近历史补足省略字段；当前消息的新条件永远覆盖历史临时条件。不得把旧地点、旧预算或旧时间无条件带入新请求。
+
+          只提取用户明确表达或可确定换算的条件，不得把常识猜测成用户偏好。
 
           categories 只能优先使用：美食、餐厅、咖啡、购物、娱乐、电影、景点、公园。
 
@@ -242,7 +280,7 @@ workflow:
 
           companion_profile 提取情侣、独自、朋友、亲子、老人、宠物等同行画像；dietary_needs 提取素食、清真、过敏原、忌口等；accessibility_needs 提取少走路、轮椅、婴儿车等可达性要求；ambience 提取安静、热闹、浪漫、适合聊天、适合拍照等氛围。
 
-          decision_priority 只能是 balanced、nearest、rating、budget、experience 之一；未明确时为 balanced。plan_mode 只能是 quick_pick、compare、itinerary、multi_day 之一：只问推荐用 quick_pick，要求对比用 compare，路线/安排用 itinerary，多日用 multi_day。
+          decision_priority 只能是 balanced、nearest、rating、budget、experience 之一；未明确时为 balanced。plan_mode 只能是 quick_pick、compare、itinerary、multi_day、memory_only 之一：只问推荐用 quick_pick，要求对比用 compare，路线/安排用 itinerary，多日用 multi_day；如果当前消息只查询、写入、删除或清空记忆而没有要求地点推荐，使用 memory_only。
 
           transport 只能是 walking 或 driving；步行、散步用 walking，自驾、开车、打车用 driving，未明确时用 walking。公交、骑行等后端暂不支持时仍填 walking，并把原始要求放入 special_notes。
 
@@ -260,10 +298,24 @@ workflow:
 
           start_time 只提取用户明确给出的开始时间文本。special_notes 保留无法映射但会影响决策的重要要求，最多 5 项。
 
+          【长期记忆授权规则】
+          只有用户当前消息明确出现“记住、以后都、以后默认、我一直、长期偏好”等持续性授权表达时，才填写 remember_* 字段。历史消息和普通的一次性表达绝不能触发长期写入。
+
+          remember_preferences 保存明确授权的稳定正向偏好；remember_avoid_terms 保存长期避雷项；remember_dietary_needs 保存用户明确授权记住的饮食要求；remember_accessibility_needs 保存长期可达性要求；remember_companion_profile 保存稳定同行画像；remember_notes 只保存无法归类且适合长期复用的短句。不得保存具体经纬度、家庭/公司地址、手机号、身份凭据、支付信息、一次性地点、单次预算、单次时间、当日情绪或模型推断。
+
+          用户说“忘记/别再记住/删除关于……”时，将要删除的原子关键词放入 forget_memory_terms。用户明确说“清空偏好、忘记所有、清除全部记忆”时 memory_action=clear。存在 remember_* 更新时 memory_action=update；只删除部分内容时 memory_action=forget；否则 memory_action=none。当前请求即使包含记忆操作，也仍要正常提取本次推荐条件。
+
           不要猜测用户没有表达的预算、同行人、可达性或偏好。
 
           '
-        memory: null
+        memory:
+          query_prompt_template: '{{#sys.query#}}'
+          role_prefix:
+            assistant: '向导：'
+            user: '用户：'
+          window:
+            enabled: true
+            size: 8
         model:
           completion_params:
             temperature: 0.1
@@ -331,7 +383,7 @@ workflow:
           name: decision_priority
           required: false
           type: string
-        - description: quick_pick、compare、itinerary 或 multi_day
+        - description: quick_pick、compare、itinerary、multi_day 或 memory_only
           name: plan_mode
           required: false
           type: string
@@ -343,6 +395,38 @@ workflow:
           name: special_notes
           required: false
           type: array[string]
+        - description: 明确授权长期记住的稳定正向偏好
+          name: remember_preferences
+          required: false
+          type: array[string]
+        - description: 明确授权长期记住的避雷项
+          name: remember_avoid_terms
+          required: false
+          type: array[string]
+        - description: 明确授权长期记住的饮食要求
+          name: remember_dietary_needs
+          required: false
+          type: array[string]
+        - description: 明确授权长期记住的可达性要求
+          name: remember_accessibility_needs
+          required: false
+          type: array[string]
+        - description: 明确授权长期记住的稳定同行画像
+          name: remember_companion_profile
+          required: false
+          type: array[string]
+        - description: 明确授权长期记住且无法归类的安全短句
+          name: remember_notes
+          required: false
+          type: array[string]
+        - description: 用户明确要求从长期画像删除的原子关键词
+          name: forget_memory_terms
+          required: false
+          type: array[string]
+        - description: update、forget、clear 或 none
+          name: memory_action
+          required: false
+          type: string
         query:
         - sys
         - query
@@ -379,7 +463,8 @@ workflow:
                    accessibility_needs=None, ambience=None, party_size=None,
                    decision_priority=None, plan_mode=None, start_time=None,
                    special_notes=None, location_accuracy=None,
-                   fallback_location_name=None):
+                   fallback_location_name=None, long_term_profile=None,
+                   memory_notice=None):
               def as_list(value, limit=20):
                   if isinstance(value, list):
                       items = [str(x).strip() for x in value if str(x).strip()]
@@ -394,6 +479,13 @@ workflow:
                       return float(value) if value not in (None, '', []) else None
                   except (TypeError, ValueError):
                       return None
+
+              def as_profile(value):
+                  try:
+                      profile = json.loads(value) if isinstance(value, str) else value
+                  except (TypeError, ValueError, json.JSONDecodeError):
+                      profile = {}
+                  return profile if isinstance(profile, dict) else {}
 
               query_text = str(query or '').strip()
               allowed = {'美食', '餐厅', '咖啡', '购物', '娱乐', '电影', '景点', '公园'}
@@ -496,7 +588,7 @@ workflow:
 
               priority_options = {'balanced', 'nearest', 'rating', 'budget', 'experience'}
               priority = decision_priority if decision_priority in priority_options else 'balanced'
-              plan_options = {'quick_pick', 'compare', 'itinerary', 'multi_day'}
+              plan_options = {'quick_pick', 'compare', 'itinerary', 'multi_day', 'memory_only'}
               inferred_plan = plan_mode if plan_mode in plan_options else None
               if days > 1:
                   inferred_plan = 'multi_day'
@@ -506,16 +598,27 @@ workflow:
                   inferred_plan = 'compare'
               inferred_plan = inferred_plan or 'quick_pick'
 
-              companions = as_list(companion_profile, 8)
-              dietary = as_list(dietary_needs, 8)
-              access = as_list(accessibility_needs, 8)
+              profile = as_profile(long_term_profile)
+              remembered_preferences = as_list(profile.get('preferences'), 12)
+              remembered_avoid = as_list(profile.get('avoid_terms'), 12)
+              remembered_dietary = as_list(profile.get('dietary_needs'), 12)
+              remembered_access = as_list(profile.get('accessibility_needs'), 12)
+              remembered_companions = as_list(profile.get('companion_profile'), 12)
+              remembered_notes = as_list(profile.get('notes'), 12)
+
+              current_companions = as_list(companion_profile, 8)
+              companions = current_companions or remembered_companions
+              dietary = as_list(as_list(dietary_needs, 8) + remembered_dietary, 12)
+              access = as_list(as_list(accessibility_needs, 8) + remembered_access, 12)
               moods = as_list(ambience, 8)
+              current_soft_preferences = as_list(as_list(preferences) + moods, 16)
+              effective_remembered_preferences = [] if current_soft_preferences else remembered_preferences
               positive_preferences = as_list(
-                  as_list(preferences) + companions + access + moods,
+                  current_soft_preferences + effective_remembered_preferences + companions + access,
                   20,
               )
-              avoid = as_list(avoid_terms, 10)
-              notes = as_list(special_notes, 5)
+              avoid = as_list(as_list(avoid_terms, 10) + remembered_avoid, 16)
+              notes = as_list(as_list(special_notes, 5) + remembered_notes, 10)
               if any(term in query_text for term in ('公交', '地铁', '骑行', '自行车')):
                   notes.append('用户提到的交通方式暂不在实时路线接口支持范围内，当前后端按步行模式检索。')
               notes = as_list(notes, 5)
@@ -552,6 +655,9 @@ workflow:
                   'avoid_terms': avoid,
                   'start_time': str(start_time or '').strip()[:32],
                   'special_notes': notes,
+                  'long_term_profile': profile,
+                  'memory_notice': str(memory_notice or '').strip()[:120],
+                  'memory_policy': '当前明确条件优先于普通长期偏好；长期避雷、饮食和可达性要求不得静默忽略。',
                   'location_source': location_source,
                   'fallback_location_name': str(fallback_location_name or '清华大学')[:64],
                   'location_accuracy_meters': accuracy,
@@ -669,13 +775,21 @@ workflow:
           - start
           - fallback_location_name
           variable: fallback_location_name
+        - value_selector:
+          - memory_merge
+          - updated_profile
+          variable: long_term_profile
+        - value_selector:
+          - memory_merge
+          - memory_notice
+          variable: memory_notice
       height: 79
       id: normalize
       position:
-        x: 684
+        x: 1368
         y: 153
       positionAbsolute:
-        x: 684
+        x: 1368
         y: 153
       selected: false
       sourcePosition: right
@@ -717,11 +831,205 @@ workflow:
       height: 168
       id: recommend
       position:
-        x: 1026
+        x: 1710
         y: 121.66666666666666
       positionAbsolute:
-        x: 1026
+        x: 1710
         y: 121.66666666666666
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        code: |-
+          import json
+          import re
+
+          EMPTY_PROFILE = {
+              'version': 1,
+              'preferences': [],
+              'avoid_terms': [],
+              'dietary_needs': [],
+              'accessibility_needs': [],
+              'companion_profile': [],
+              'notes': [],
+          }
+
+          def main(current_profile, memory_action=None, remember_preferences=None,
+                   remember_avoid_terms=None, remember_dietary_needs=None,
+                   remember_accessibility_needs=None,
+                   remember_companion_profile=None, remember_notes=None,
+                   forget_memory_terms=None):
+              def clean_list(value, limit=12):
+                  if isinstance(value, str):
+                      value = [item.strip() for item in value.replace('，', ',').split(',')]
+                  if not isinstance(value, list):
+                      return []
+                  cleaned = []
+                  for item in value:
+                      text = re.sub(r'[\x00-\x1f\x7f]+', ' ', str(item)).strip()[:40]
+                      if not text:
+                          continue
+                      # 长期画像不保存疑似手机号、精确坐标、密钥或口令。
+                      if re.search(r'(?<!\d)1[3-9]\d{9}(?!\d)', text):
+                          continue
+                      if re.search(r'-?\d{2,3}\.\d{3,}\s*[,，]\s*-?\d{1,2}\.\d{3,}', text):
+                          continue
+                      if re.search(r'(?:api[_ -]?key|token|密码|口令|密钥)', text, re.I):
+                          continue
+                      if text not in cleaned:
+                          cleaned.append(text)
+                  return cleaned[:limit]
+
+              def empty_profile():
+                  return {key: list(value) if isinstance(value, list) else value
+                          for key, value in EMPTY_PROFILE.items()}
+
+              try:
+                  parsed = json.loads(current_profile) if isinstance(current_profile, str) else current_profile
+              except (TypeError, ValueError, json.JSONDecodeError):
+                  parsed = {}
+              profile = empty_profile()
+              if isinstance(parsed, dict):
+                  for key in profile:
+                      if key != 'version':
+                          profile[key] = clean_list(parsed.get(key))
+
+              action = str(memory_action or 'none').strip().lower()
+              forget_terms = clean_list(forget_memory_terms, 20)
+              updates = {
+                  'preferences': clean_list(remember_preferences),
+                  'avoid_terms': clean_list(remember_avoid_terms),
+                  'dietary_needs': clean_list(remember_dietary_needs),
+                  'accessibility_needs': clean_list(remember_accessibility_needs),
+                  'companion_profile': clean_list(remember_companion_profile),
+                  'notes': clean_list(remember_notes),
+              }
+              before = json.dumps(profile, ensure_ascii=False, sort_keys=True)
+              notice = ''
+
+              if action == 'clear':
+                  profile = empty_profile()
+                  notice = '已按你的要求清空长期偏好。'
+              else:
+                  if action in ('forget', 'update') and forget_terms:
+                      lowered_terms = [item.lower() for item in forget_terms]
+                      for key in updates:
+                          profile[key] = [
+                              item for item in profile[key]
+                              if not any(term in item.lower() for term in lowered_terms)
+                          ]
+                  has_updates = any(updates.values())
+                  if action == 'update':
+                      for key, values in updates.items():
+                          profile[key] = clean_list(profile[key] + values)
+                  applied_updates = action == 'update' and has_updates
+                  if forget_terms and applied_updates:
+                      notice = '已按你的要求更新长期偏好，并忘记指定内容。'
+                  elif forget_terms:
+                      notice = '已按你的要求忘记指定的长期偏好。'
+                  elif applied_updates:
+                      notice = '已按你的明确授权更新长期偏好。'
+
+              after = json.dumps(profile, ensure_ascii=False, sort_keys=True)
+              if before == after and action != 'clear':
+                  notice = ''
+              return {
+                  'updated_profile': json.dumps(profile, ensure_ascii=False, separators=(',', ':')),
+                  'memory_notice': notice,
+                  'memory_changed': 'true' if before != after else 'false',
+              }
+        code_language: python3
+        desc: 仅按用户明确授权合并、删除或清空长期画像，并过滤敏感值
+        outputs:
+          memory_changed:
+            children: null
+            type: string
+          memory_notice:
+            children: null
+            type: string
+          updated_profile:
+            children: null
+            type: string
+        selected: false
+        title: 合并长期记忆
+        type: code
+        variables:
+        - value_selector:
+          - conversation
+          - user_profile
+          variable: current_profile
+        - value_selector:
+          - extract
+          - memory_action
+          variable: memory_action
+        - value_selector:
+          - extract
+          - remember_preferences
+          variable: remember_preferences
+        - value_selector:
+          - extract
+          - remember_avoid_terms
+          variable: remember_avoid_terms
+        - value_selector:
+          - extract
+          - remember_dietary_needs
+          variable: remember_dietary_needs
+        - value_selector:
+          - extract
+          - remember_accessibility_needs
+          variable: remember_accessibility_needs
+        - value_selector:
+          - extract
+          - remember_companion_profile
+          variable: remember_companion_profile
+        - value_selector:
+          - extract
+          - remember_notes
+          variable: remember_notes
+        - value_selector:
+          - extract
+          - forget_memory_terms
+          variable: forget_memory_terms
+      height: 95
+      id: memory_merge
+      position:
+        x: 684
+        y: 105.16666666666666
+      positionAbsolute:
+        x: 684
+        y: 105.16666666666666
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        desc: 将用户明确授权的画像写入当前 Dify 会话；开始新对话即清空
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - memory_merge
+          - updated_profile
+          variable_selector:
+          - conversation
+          - user_profile
+        selected: false
+        title: 保存长期记忆
+        type: assigner
+        version: '2'
+      height: 88
+      id: remember
+      position:
+        x: 1026
+        y: 108.66666666666666
+      positionAbsolute:
+        x: 1026
+        y: 108.66666666666666
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -840,10 +1148,10 @@ workflow:
       height: 95
       id: validate
       position:
-        x: 1368
+        x: 2052
         y: 153
       positionAbsolute:
-        x: 1368
+        x: 2052
         y: 153
       selected: false
       sourcePosition: right
@@ -856,6 +1164,14 @@ workflow:
           enabled: false
           variable_selector: []
         desc: 按快速选择、对比、单日路线或多日攻略生成可追溯答案
+        memory:
+          query_prompt_template: '{{#sys.query#}}'
+          role_prefix:
+            assistant: '向导：'
+            user: '用户：'
+          window:
+            enabled: true
+            size: 6
         model:
           completion_params:
             temperature: 0.25
@@ -874,6 +1190,13 @@ workflow:
 
             quality_notes 是内部质检结论，应用自然语言转述，不要暴露 JSON、字段名或“审计节点”等实现细节。location_source=fallback 时，开头明确说明使用 fallback_location_name 附近作为临时起点。不要输出经纬度或定位精度。
 
+            【记忆边界】
+            最近对话只是短期记忆，只能用于理解指代、省略和保持交流连贯。历史答案中的旧地点、旧路线、旧评分、旧价格和旧耗时都可能过期，绝不能绕过本轮 data 重新推荐。当前消息的明确条件优先于历史临时条件。
+
+            request_context.long_term_profile 是用户明确授权保存在当前会话中的稳定画像。只在与本次需求相关时自然应用，不要主动完整复述画像，不要把画像内容说成地点事实。普通长期偏好与当前明确要求冲突时以当前要求为准；长期 avoid_terms、dietary_needs、accessibility_needs 涉及安全或可达性时不得静默忽略，应提示冲突并请用户确认或明确要求忘记该项。
+
+            request_context.memory_notice 非空时，在回答开头用一句自然语言确认本次记忆更新、删除或清空；为空时不要声称已记住任何内容。不得暗示记忆跨用户、跨设备或永久保存，也不要显示内部画像 JSON。用户询问“你记得什么”时，只概括与附近推荐有关且已授权保存的画像；如果画像为空，明确说当前没有长期偏好。
+
             【事实纪律】
             只能根据 data 中的结构化字段描述地点、类别、地址、标签、评分、人均价格、距离、路线和规划时间。score 是内部综合排序分，不是用户评分，禁止展示成星级或评分。缺失价格或 rating 必须写“暂无数据”，不得把缺失评分当作低分。
 
@@ -885,6 +1208,8 @@ workflow:
 
             【自动选择回答形态】
             根据 request_context.plan_mode 组织内容：
+
+            memory_only：此规则优先于地点数据状态；不要提及定位、附近数据服务、候选、路线或导航。memory_notice 非空时简洁确认已执行的更新/删除/清空；用户询问“你记得什么”时，按正向偏好、避雷、饮食、可达性、同行画像分组概括 long_term_profile，仅显示非空项。画像为空时明确说当前没有长期偏好，并提示只有明确说“记住……”才会写入。
 
             quick_pick：先用一句“首选结论”直接选出综合排序最靠前且与已知条件不冲突的候选；随后给出 2 至 3 张简洁决策卡，每张包含“为什么适合、已知事实、需要核实、导航”。最后给一句“切换规则”，例如更看重距离/预算时应选哪个，但只能比较真实字段。
 
@@ -920,10 +1245,10 @@ workflow:
       height: 131
       id: explain
       position:
-        x: 1710
+        x: 2394
         y: 168.16666666666666
       positionAbsolute:
-        x: 1710
+        x: 2394
         y: 168.16666666666666
       selected: false
       sourcePosition: right
@@ -941,10 +1266,10 @@ workflow:
       height: 101
       id: answer
       position:
-        x: 2052
+        x: 2736
         y: 205
       positionAbsolute:
-        x: 2052
+        x: 2736
         y: 205
       selected: false
       sourcePosition: right
