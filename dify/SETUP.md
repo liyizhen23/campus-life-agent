@@ -1,13 +1,13 @@
 # Dify Cloud 配置
 
-## 1. 配置并行智算云模型
+## 1. 配置 DeepSeek 官方模型
 
 1. 登录 Dify Cloud，进入 **Plugins / 插件市场**。
-2. 安装官方 `OpenAI-API-compatible` 模型供应商。
-3. 在 **Settings → Model Provider → OpenAI-API-compatible** 中添加 LLM，填写并行智算云 API Key 和 `https://llmapi.paratera.com`。
-4. Dify 中的显示名称使用 `DeepSeek-V4-Flash-0731`，API endpoint 模型名称使用平台实际提供的可调用别名（当前优先尝试 `deepseek-v4-flash`）。
+2. 安装官方 **DeepSeek / 深度求索** 模型供应商。
+3. 在 **Settings → Model Provider → DeepSeek** 中填写 DeepSeek 官方 API Key。
+4. API Base URL 使用官方地址 `https://api.deepseek.com`，模型选择 `deepseek-v4-flash`。
 
-> API Key 只保存在 Dify 工作区凭据中，不要写入 DSL、GitHub 或环境变量示例。如果凭据验证提示 `no healthy deployments`，先从并行智算云的模型列表确认 API endpoint 模型名称；这不是工作流节点或 Render 的错误。
+> API Key 只保存在 Dify 工作区凭据中，不要写入 DSL、GitHub 或环境变量示例。
 
 ## 2. 导入 Chatflow
 
@@ -33,18 +33,19 @@ DSL 已按当前 Dify `0.7.0` 导出结构整理。导入后检查以下十三�
 
 Chatflow 同时包含两层记忆：提取节点读取最近 8 轮、生成节点读取最近 6 轮作为短期上下文；`user_profile` 会话变量保存用户明确授权的长期偏好。长期画像只在用户说“记住/以后默认”等明确授权语句时更新，并过滤疑似手机号、精确坐标、密钥和口令；用户可以说“忘记辣”“清空长期偏好”。该画像属于会话级记忆：前端保存 `conversation_id` 后可跨刷新继续使用，但不会自动跨设备或进入新对话。
 
-如果模型节点显示未配置，在“需求分流”、“提取推荐条件”、“生成推荐说明”和“日常问答”节点中重新选择 `OpenAI-API-compatible / DeepSeek-V4-Flash-0731`。
+如果模型节点显示未配置，在“需求分流”、“提取推荐条件”、“生成推荐说明”和“日常问答”节点中重新选择 `DeepSeek / deepseek-v4-flash`。
 
-## 3. 配置语音输入与朗读
+## 3. 语音输入与朗读
 
-DSL 已开启 `speech_to_text` 和 `text_to_speech`，朗读语言为简体中文并开启自动播放。DeepSeek 聊天模型本身不等于语音模型，因此还需在 Dify 工作区的 **Settings → Model Provider** 中配置一个 Speech-to-Text 模型和一个 Text-to-Speech 模型，并设为工作区可用的语音模型。
+DSL 已移除 Dify 的 `speech_to_text`，并默认关闭 `text_to_speech`。这是因为 DeepSeek/OpenAI-compatible 文本模型不是 Dify 的默认语音模型；在工作区未配置 TTS 时开启自动朗读，会使整个 Chatflow 在运行前因 `Default model not found for tts` 失败。
 
-配置完成后：
+本项目 H5 不依赖 Dify 语音模型：
 
-- Dify 自带 WebApp 会显示语音输入并输出自动朗读。
-- 本项目 H5 通过后端 `/api/audio-to-text` 调用同一 Dify 语音识别能力，并接收聊天流中的 TTS 音频；若没有收到 Dify 音频，会使用浏览器中文朗读作为兜底。
+- 优先使用浏览器原生中文语音识别将口述内容回填到输入框。
+- 回答完成后使用浏览器中文语音合成自动朗读，可通过顶部开关静音。
+- 对不支持浏览器语音识别的环境，仍保留后端 `/api/audio-to-text` 作为可选通道；使用它前需在 Dify 配置默认 Speech-to-Text 模型。
 
-麦克风与自动播放在生产环境需要 HTTPS 和用户授权。
+如果将来已在 Dify 工作区配置独立的 Speech-to-Text 和 Text-to-Speech 模型，可再手动开启对应功能。麦克风与自动播放在生产环境需要 HTTPS 和用户授权。
 
 ## 4. 配置 Chatflow 环境变量
 

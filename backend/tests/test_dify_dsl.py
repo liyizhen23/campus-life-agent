@@ -18,9 +18,9 @@ def test_dify_dsl_uses_current_canvas_shape():
     assert "NearbyGo" in features["opening_statement"]
     assert len(features["suggested_questions"]) >= 4
     assert features["suggested_questions_after_answer"]["enabled"] is True
-    assert features["speech_to_text"]["enabled"] is True
-    assert features["text_to_speech"]["enabled"] is True
-    assert features["text_to_speech"]["autoPlay"] == "enabled"
+    assert "speech_to_text" not in features
+    assert features["text_to_speech"]["enabled"] is False
+    assert features["text_to_speech"]["autoPlay"] == "disabled"
     file_upload_config = features["file_upload"]["fileUploadConfig"]
     assert file_upload_config["attachment_image_file_size_limit"] == 2
     assert file_upload_config["workflow_file_upload_limit"] == 10
@@ -28,7 +28,7 @@ def test_dify_dsl_uses_current_canvas_shape():
     dependency = dsl["dependencies"][0]["value"][
         "marketplace_plugin_unique_identifier"
     ]
-    assert dependency.startswith("langgenius/openai_api_compatible:")
+    assert dependency.startswith("langgenius/deepseek:")
 
     environment_variables = {
         variable["name"]: variable
@@ -66,10 +66,10 @@ def test_dify_dsl_uses_current_canvas_shape():
     assert model_nodes
     assert all(
         model["provider"]
-        == "langgenius/openai_api_compatible/openai_api_compatible"
+        == "langgenius/deepseek/deepseek"
         for model in model_nodes
     )
-    assert all(model["name"] == "DeepSeek-V4-Flash-0731" for model in model_nodes)
+    assert all(model["name"] == "deepseek-v4-flash" for model in model_nodes)
 
     code_nodes = [node for node in graph["nodes"] if node["data"]["type"] == "code"]
     for code_node in code_nodes:

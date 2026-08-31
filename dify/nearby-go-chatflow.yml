@@ -10,7 +10,7 @@ dependencies:
 - current_identifier: null
   type: marketplace
   value:
-    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.64@ed082da9060cdaf69127de0f39e7ba5d255d74276feed9c88b2ba5226515728c
+    marketplace_plugin_unique_identifier: langgenius/deepseek:0.0.20@850efe73fb62bbe7ab2229116086596596297a77174fb86f73e1363b99a24116
     version: null
 kind: app
 version: 0.7.0
@@ -88,8 +88,6 @@ workflow:
       enabled: false
     sensitive_word_avoidance:
       enabled: false
-    speech_to_text:
-      enabled: true
     suggested_questions:
     - 推荐附近人均 80 元、安静适合聊天的晚餐
     - 帮我安排一个吃饭加散步的 3 小时路线
@@ -98,8 +96,8 @@ workflow:
     suggested_questions_after_answer:
       enabled: true
     text_to_speech:
-      autoPlay: enabled
-      enabled: true
+      autoPlay: disabled
+      enabled: false
       language: zh-Hans
       voice: ''
   graph:
@@ -330,8 +328,8 @@ workflow:
           completion_params:
             temperature: 0
           mode: chat
-          name: DeepSeek-V4-Flash-0731
-          provider: langgenius/openai_api_compatible/openai_api_compatible
+          name: deepseek-v4-flash
+          provider: langgenius/deepseek/deepseek
         query_variable_selector:
         - sys
         - query
@@ -412,8 +410,8 @@ workflow:
           completion_params:
             temperature: 0.1
           mode: chat
-          name: DeepSeek-V4-Flash-0731
-          provider: langgenius/openai_api_compatible/openai_api_compatible
+          name: deepseek-v4-flash
+          provider: langgenius/deepseek/deepseek
         parameters:
         - description: 地点大类数组
           name: categories
@@ -1364,8 +1362,8 @@ workflow:
           completion_params:
             temperature: 0.25
           mode: chat
-          name: DeepSeek-V4-Flash-0731
-          provider: langgenius/openai_api_compatible/openai_api_compatible
+          name: deepseek-v4-flash
+          provider: langgenius/deepseek/deepseek
         prompt_template:
         - id: cfcd8b51-4a48-4ee9-9982-5eb61df3213d
           role: system
@@ -1487,8 +1485,8 @@ workflow:
           completion_params:
             temperature: 0.35
           mode: chat
-          name: DeepSeek-V4-Flash-0731
-          provider: langgenius/openai_api_compatible/openai_api_compatible
+          name: deepseek-v4-flash
+          provider: langgenius/deepseek/deepseek
         prompt_template:
         - id: 5921fbd5-7095-44cb-a2b6-633a6e36a610
           role: system
