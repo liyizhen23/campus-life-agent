@@ -912,7 +912,7 @@ workflow:
         ssl_verify: true
         timeout:
           max_connect_timeout: 10
-          max_read_timeout: 30
+          max_read_timeout: 60
           max_write_timeout: 10
         title: 高德附近推荐
         type: http-request
