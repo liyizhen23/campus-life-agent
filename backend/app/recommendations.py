@@ -4,6 +4,7 @@ import math
 from collections.abc import Iterable
 from typing import Any
 from urllib.parse import urlencode
+from urllib.parse import urlparse
 
 from .amap import AmapClient, AmapError
 from .models import (
@@ -43,6 +44,25 @@ def _text(value: Any) -> str:
     if isinstance(value, list):
         return ", ".join(str(item) for item in value if item)
     return str(value or "")
+
+
+def _image_urls(value: Any, limit: int = 3) -> list[str]:
+    photos = value if isinstance(value, list) else []
+    urls: list[str] = []
+    for photo in photos:
+        raw_url = photo.get("url") if isinstance(photo, dict) else photo
+        try:
+            parsed = urlparse(str(raw_url or ""))
+        except ValueError:
+            continue
+        if parsed.scheme != "https" or not parsed.netloc:
+            continue
+        normalized = parsed.geturl()
+        if normalized not in urls:
+            urls.append(normalized)
+        if len(urls) >= limit:
+            break
+    return urls
 
 
 def _category_group(category: str) -> str:
@@ -552,6 +572,7 @@ async def build_recommendations(
                 rating=_number(biz_ext.get("rating")),
                 cost_per_person=_number(biz_ext.get("cost")),
                 tags=tags[:6],
+                image_urls=_image_urls(poi.get("photos")),
                 score=score,
                 navigation_url=_navigation_url(
                     segment_origin,

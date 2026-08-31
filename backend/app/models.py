@@ -81,6 +81,7 @@ class PlaceRecommendation(BaseModel):
     rating: float | None = None
     cost_per_person: float | None = None
     tags: list[str] = Field(default_factory=list)
+    image_urls: list[str] = Field(default_factory=list)
     score: float
     navigation_url: str
 
@@ -133,6 +134,7 @@ class RecommendationResponse(BaseModel):
     total_travel_minutes: int | None = None
     total_visit_minutes: int | None = None
     total_flexible_minutes: int | None = None
+    route_map_path: str | None = None
     places: list[PlaceRecommendation]
     itinerary: list[ItinerarySegment] = Field(default_factory=list)
     itinerary_days: list[ItineraryDay] = Field(default_factory=list)

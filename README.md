@@ -8,6 +8,7 @@
 
 - 移动端 H5 聊天页面
 - 浏览器实时定位与定位授权状态提示
+- 麦克风录音转文字，以及 Dify 语音流/浏览器双层回答朗读
 - Dify Cloud SSE 流式聊天代理，避免前端泄露 Dify Key
 - Dify reasoning 双层过滤，只向页面展示最终答案
 - 浏览器本地保存最近 12 轮对话，可随时清空且不保存定位
@@ -23,6 +24,8 @@
 - 快速选择、候选对比、单日路线和多日攻略四种自适应回答形态
 - HTTP/JSON、空结果、定位回退和避雷项冲突的回答前可信度审计
 - 安全 Markdown 渲染与高德一键导航链接（移动端优先尝试唤起 App）
+- 服务端签名的高德静态地图、候选点标注和行程顺序连线，不向浏览器泄露高德 Key
+- 日常问答与附近出行/美食独立分支，普通问题不传递定位也不调用高德
 - Dify Chatflow DSL 和配置文档
 
 ## 所需凭据
@@ -34,7 +37,7 @@
 3. DeepSeek API Key（只配置在 Dify Cloud 模型供应商中）
 4. 自行生成的 `INTERNAL_API_TOKEN`
 
-当前 H5 不展示地图，使用浏览器原生定位，因此第一版不需要高德 JS API Key/安全密钥。将来加入地图组件时再申请。
+当前 H5 通过服务端代理高德静态地图，复用同一个 **Web 服务 API Key**，不需要高德 JS API Key 或安全密钥。
 
 ## 本地启动
 
@@ -47,6 +50,23 @@ docker compose up --build
 Docker Compose 会自动读取仓库根目录的 `.env`。至少填写 `DIFY_API_KEY`、`AMAP_WEB_SERVICE_KEY` 和 `INTERNAL_API_TOKEN`；其中 `INTERNAL_API_TOKEN` 必须与 Dify Chatflow 中的同名变量一致。`.env` 已被 Git 忽略，不得强制提交。
 
 打开 `http://localhost:8000`。浏览器精确定位在生产环境需要 HTTPS；localhost 通常可用于本地开发。
+
+## Render 部署
+
+仓库根目录已包含 `render.yaml`。在 Render Dashboard 选择 **New → Blueprint**，连接本 GitHub 仓库并确认 Blueprint，然后填写三个不会进入仓库的秘密值：
+
+- `DIFY_API_KEY`：已发布 Chatflow 的应用 API Key。
+- `AMAP_WEB_SERVICE_KEY`：高德 Web 服务 Key。
+- `INTERNAL_API_TOKEN`：自行生成的高强度随机字符串。
+
+部署成功后：
+
+1. 打开 `https://<你的服务名>.onrender.com/api/health`，确认 `dify`、`amap`、`internal_token` 均为 `true`。
+2. 在 Dify Chatflow 环境变量中把 `BACKEND_BASE_URL` 改成这个 Render HTTPS 地址，不要带末尾 `/`。
+3. 把 Dify 中的 `INTERNAL_API_TOKEN` 设为与 Render 完全相同的值，然后重新发布 Chatflow。
+4. 打开 Render 服务首页，授权定位和麦克风，分别测试日常问答、附近推荐、地图和语音。
+
+如果已经在 Render 上手动创建了同名 `nearby-go` 服务，可以继续使用它：在 Settings 中保持 Dockerfile Path 为 `backend/Dockerfile`、Docker Build Context 为 `.`、Health Check Path 为 `/api/health`，并补齐上述环境变量后选择 **Manual Deploy → Deploy latest commit**。
 
 不使用 Docker：
 
@@ -66,6 +86,8 @@ uvicorn app.main:app --reload --port 8000
 
 - `GET /api/health`：配置状态
 - `POST /api/chat`：H5 调用的 Dify SSE 代理
+- `POST /api/audio-to-text`：H5 录音转文字代理，Dify Key 不进入浏览器
+- `GET /api/route-map`：签名路线点对应的高德静态地图图片
 - `POST /api/recommendations`：Dify HTTP 节点调用的高德推荐接口，需要 `X-Internal-Token`
 
 推荐接口示例：

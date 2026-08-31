@@ -40,6 +40,12 @@ const state = {
   history: savedChat.history,
   user: localStorage.getItem("nearbygo-user") || crypto.randomUUID(),
   busy: false,
+  readAloud: localStorage.getItem("nearbygo-read-aloud") !== "false",
+  recorder: null,
+  recordingChunks: [],
+  ttsChunks: [],
+  ttsReceived: false,
+  audio: null,
 };
 localStorage.setItem("nearbygo-user", state.user);
 
@@ -50,6 +56,8 @@ const sendButton = document.querySelector("#sendButton");
 const clearChatButton = document.querySelector("#clearChatButton");
 const locationButton = document.querySelector("#locationButton");
 const locationLabel = document.querySelector("#locationLabel");
+const voiceButton = document.querySelector("#voiceButton");
+const readAloudButton = document.querySelector("#readAloudButton");
 const welcomeMessage = messages.firstElementChild.cloneNode(true);
 
 const { escapeHtml, renderMarkdown } = window.NearbyGoMarkdown;
@@ -86,6 +94,66 @@ function stripReasoning(value) {
   }
 
   return result.trimStart();
+}
+
+function updateReadAloudButton() {
+  readAloudButton.textContent = state.readAloud ? "🔊 自动朗读" : "🔇 已静音";
+  readAloudButton.setAttribute("aria-pressed", String(state.readAloud));
+}
+
+function stopSpeaking() {
+  window.speechSynthesis?.cancel();
+  if (state.audio) {
+    state.audio.pause();
+    URL.revokeObjectURL(state.audio.src);
+    state.audio = null;
+  }
+}
+
+function plainTextForSpeech(value) {
+  return String(value || "")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/[#>*_`~-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 4000);
+}
+
+function browserReadAloud(value) {
+  if (!state.readAloud || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+  const text = plainTextForSpeech(value);
+  if (!text) return;
+  stopSpeaking();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "zh-CN";
+  utterance.rate = 1;
+  window.speechSynthesis.speak(utterance);
+}
+
+function decodeBase64Chunk(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+async function playDifySpeech() {
+  if (!state.readAloud || !state.ttsChunks.length) return;
+  stopSpeaking();
+  const url = URL.createObjectURL(new Blob(state.ttsChunks, { type: "audio/mpeg" }));
+  state.ttsChunks = [];
+  state.audio = new Audio(url);
+  state.audio.addEventListener("ended", () => {
+    URL.revokeObjectURL(url);
+    state.audio = null;
+  }, { once: true });
+  try {
+    await state.audio.play();
+  } catch {
+    URL.revokeObjectURL(url);
+    state.audio = null;
+  }
 }
 
 function addMessage(role, text = "") {
@@ -174,6 +242,15 @@ function locate() {
 
 function handleEvent(event) {
   if (event.conversation_id) state.conversationId = event.conversation_id;
+  if (event.event === "tts_message" && event.audio) {
+    state.ttsReceived = true;
+    if (state.readAloud) state.ttsChunks.push(decodeBase64Chunk(event.audio));
+    return "";
+  }
+  if (event.event === "tts_message_end") {
+    void playDifySpeech();
+    return "";
+  }
   if (["message", "agent_message"].includes(event.event) && event.answer) return event.answer;
   if (event.event === "error") throw new Error(event.message || "Dify 调用失败");
   return "";
@@ -184,6 +261,9 @@ async function sendQuery(query) {
   state.busy = true;
   sendButton.disabled = true;
   clearChatButton.disabled = true;
+  voiceButton.disabled = true;
+  state.ttsChunks = [];
+  state.ttsReceived = false;
   input.value = "";
   addMessage("user", query);
   const answerBubble = addMessage("assistant", "");
@@ -232,6 +312,7 @@ async function sendQuery(query) {
       answerBubble.innerHTML = "<p>暂时没有取得推荐，请稍后重试。</p>";
     } else {
       rememberTurn(query, answer);
+      if (!state.ttsReceived) browserReadAloud(answer);
     }
   } catch (error) {
     answerBubble.classList.remove("typing");
@@ -240,7 +321,74 @@ async function sendQuery(query) {
     state.busy = false;
     sendButton.disabled = false;
     clearChatButton.disabled = false;
+    voiceButton.disabled = false;
     input.focus();
+  }
+}
+
+function preferredRecordingType() {
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+  return candidates.find((type) => window.MediaRecorder?.isTypeSupported(type)) || "";
+}
+
+async function transcribeRecording(blob) {
+  voiceButton.disabled = true;
+  voiceButton.textContent = "…";
+  const data = new FormData();
+  const extension = blob.type.includes("mp4") ? "m4a" : "webm";
+  data.append("audio", blob, `voice.${extension}`);
+  try {
+    const response = await fetch("/api/audio-to-text", {
+      method: "POST",
+      headers: { "X-NearbyGo-User": state.user },
+      body: data,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || `语音识别返回 ${response.status}`);
+    input.value = String(payload.text || "");
+    input.dispatchEvent(new Event("input"));
+    input.focus();
+  } catch (error) {
+    window.alert(`录音识别失败：${error.message}`);
+  } finally {
+    voiceButton.disabled = false;
+    voiceButton.textContent = "🎙️";
+  }
+}
+
+async function toggleRecording() {
+  if (state.busy) return;
+  if (state.recorder?.state === "recording") {
+    state.recorder.stop();
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    window.alert("当前浏览器不支持录音，请使用 Chrome、Edge 或 Safari 新版本。");
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = preferredRecordingType();
+    state.recordingChunks = [];
+    state.recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    state.recorder.addEventListener("dataavailable", (event) => {
+      if (event.data.size) state.recordingChunks.push(event.data);
+    });
+    state.recorder.addEventListener("stop", () => {
+      voiceButton.classList.remove("recording");
+      voiceButton.setAttribute("aria-label", "按下录音");
+      stream.getTracks().forEach((track) => track.stop());
+      const blob = new Blob(state.recordingChunks, { type: state.recorder.mimeType || "audio/webm" });
+      void transcribeRecording(blob);
+    }, { once: true });
+    state.recorder.start();
+    voiceButton.classList.add("recording");
+    voiceButton.setAttribute("aria-label", "停止录音并识别");
+    window.setTimeout(() => {
+      if (state.recorder?.state === "recording") state.recorder.stop();
+    }, 60000);
+  } catch {
+    window.alert("无法使用麦克风，请检查浏览器权限。");
   }
 }
 
@@ -271,4 +419,12 @@ messages.addEventListener("click", (event) => {
 });
 locationButton.addEventListener("click", locate);
 clearChatButton.addEventListener("click", clearChatMemory);
+voiceButton.addEventListener("click", toggleRecording);
+readAloudButton.addEventListener("click", () => {
+  state.readAloud = !state.readAloud;
+  localStorage.setItem("nearbygo-read-aloud", String(state.readAloud));
+  if (!state.readAloud) stopSpeaking();
+  updateReadAloudButton();
+});
+updateReadAloudButton();
 locate();

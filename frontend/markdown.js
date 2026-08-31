@@ -38,6 +38,20 @@
     let cursor = 0;
 
     while (cursor < source.length) {
+      if (source.startsWith("![", cursor)) {
+        const labelEnd = source.indexOf("](", cursor + 2);
+        const urlEnd = labelEnd >= 0 ? source.indexOf(")", labelEnd + 2) : -1;
+        if (labelEnd > cursor + 2 && urlEnd > labelEnd + 2) {
+          const url = safeHttpsUrl(source.slice(labelEnd + 2, urlEnd));
+          if (url) {
+            const alt = escapeHtml(source.slice(cursor + 2, labelEnd));
+            output += `<img class="answer-visual" src="${escapeHtml(url)}" alt="${alt}" loading="lazy">`;
+            cursor = urlEnd + 1;
+            continue;
+          }
+        }
+      }
+
       if (source.startsWith("**", cursor)) {
         const end = source.indexOf("**", cursor + 2);
         if (end > cursor + 2) {

@@ -18,6 +18,9 @@ def test_dify_dsl_uses_current_canvas_shape():
     assert "NearbyGo" in features["opening_statement"]
     assert len(features["suggested_questions"]) >= 4
     assert features["suggested_questions_after_answer"]["enabled"] is True
+    assert features["speech_to_text"]["enabled"] is True
+    assert features["text_to_speech"]["enabled"] is True
+    assert features["text_to_speech"]["autoPlay"] == "enabled"
     file_upload_config = features["file_upload"]["fileUploadConfig"]
     assert file_upload_config["attachment_image_file_size_limit"] == 2
     assert file_upload_config["workflow_file_upload_limit"] == 10
@@ -75,15 +78,30 @@ def test_dify_dsl_uses_current_canvas_shape():
             assert "value" not in variable
 
     assert [(edge["source"], edge["target"]) for edge in graph["edges"]] == [
-        ("start", "extract"),
+        ("start", "route"),
+        ("route", "extract"),
+        ("route", "general_chat"),
         ("extract", "memory_merge"),
         ("memory_merge", "remember"),
         ("remember", "normalize"),
         ("normalize", "recommend"),
         ("recommend", "validate"),
-        ("validate", "explain"),
+        ("validate", "map_cards"),
+        ("map_cards", "explain"),
         ("explain", "answer"),
+        ("general_chat", "general_answer"),
     ]
+
+    classifier = next(node for node in graph["nodes"] if node["id"] == "route")
+    assert classifier["data"]["type"] == "question-classifier"
+    assert {item["id"] for item in classifier["data"]["classes"]} == {
+        "nearby",
+        "general",
+    }
+    assert {edge["sourceHandle"] for edge in graph["edges"] if edge["source"] == "route"} == {
+        "nearby",
+        "general",
+    }
 
     extractor = next(node for node in graph["nodes"] if node["id"] == "extract")
     parameter_names = {item["name"] for item in extractor["data"]["parameters"]}
@@ -213,6 +231,47 @@ def test_explanation_prompt_requires_valid_markdown_and_honest_route_fallback():
     assert "记忆边界" in system_prompt
     assert "不得暗示记忆跨用户、跨设备或永久保存" in system_prompt
     assert explain["data"]["memory"]["window"] == {"enabled": True, "size": 6}
+    answer = next(node for node in graph["nodes"] if node["id"] == "answer")
+    assert "map_cards.visual_cards" in answer["data"]["answer"]
+
+
+def test_map_card_node_builds_visual_map_and_rejects_bad_photo_urls():
+    dsl = yaml.safe_load(DSL_PATH.read_text(encoding="utf-8"))
+    node = next(
+        node for node in dsl["workflow"]["graph"]["nodes"] if node["id"] == "map_cards"
+    )
+    namespace = {}
+    exec(node["data"]["code"], namespace)
+
+    import json
+
+    result = namespace["main"](
+        json.dumps(
+            {
+                "route_map_path": "/api/route-map?points=signed&sig=value",
+                "transport": "walking",
+                "itinerary": [
+                    {
+                        "from_name": "当前位置",
+                        "to_name": "测试公园",
+                        "route_duration_minutes": 10,
+                        "route_distance_meters": 700,
+                    }
+                ],
+                "places": [
+                    {"name": "测试", "image_urls": ["https://store.is.autonavi.com/p.jpg"]},
+                    {"name": "坏图", "image_urls": ["javascript:alert(1)"]},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        "https://guide.example.com",
+    )["visual_cards"]
+
+    assert "https://guide.example.com/api/route-map?" in result
+    assert "🚶 步行" in result
+    assert "https://store.is.autonavi.com/p.jpg" in result
+    assert "javascript:" not in result
 
 
 def test_normalizer_builds_personalized_context_and_safe_location_fallback():

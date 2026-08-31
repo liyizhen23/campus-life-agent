@@ -59,3 +59,12 @@ test("marks an encoded AMap HTTPS navigation URL as a prominent navigation link"
   assert.match(html, /coordinate=gaode/);
   assert.match(html, /callnative=1/);
 });
+
+test("renders only HTTPS Markdown images as lazy visual cards", () => {
+  const html = renderMarkdown("![附近地图](https://guide.example.com/api/route-map?sig=safe)\n![坏图](javascript:alert(1))");
+
+  assert.match(html, /class="answer-visual"/);
+  assert.match(html, /loading="lazy"/);
+  assert.match(html, /https:\/\/guide\.example\.com\/api\/route-map/);
+  assert.ok(!html.includes('src="javascript:'));
+});

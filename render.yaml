@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: nearby-go
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: DIFY_API_KEY
+        sync: false
+      - key: AMAP_WEB_SERVICE_KEY
+        sync: false
+      - key: INTERNAL_API_TOKEN
+        sync: false
+      - key: DIFY_API_BASE_URL
+        value: https://api.dify.ai/v1
+      - key: DEFAULT_LONGITUDE
+        value: "116.3260"
+      - key: DEFAULT_LATITUDE
+        value: "40.0030"
+      - key: DEFAULT_LOCATION_NAME
+        value: 清华大学
+      - key: REQUEST_TIMEOUT_SECONDS
+        value: "30"

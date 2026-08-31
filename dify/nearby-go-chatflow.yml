@@ -89,7 +89,7 @@ workflow:
     sensitive_word_avoidance:
       enabled: false
     speech_to_text:
-      enabled: false
+      enabled: true
     suggested_questions:
     - 推荐附近人均 80 元、安静适合聊天的晚餐
     - 帮我安排一个吃饭加散步的 3 小时路线
@@ -98,8 +98,9 @@ workflow:
     suggested_questions_after_answer:
       enabled: true
     text_to_speech:
-      enabled: false
-      language: ''
+      autoPlay: enabled
+      enabled: true
+      language: zh-Hans
       voice: ''
   graph:
     edges:
@@ -107,11 +108,35 @@ workflow:
         isInIteration: false
         isInLoop: false
         sourceType: start
-        targetType: parameter-extractor
-      id: start-extract
+        targetType: question-classifier
+      id: start-route
       source: start
       sourceHandle: source
+      target: route
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: question-classifier
+        targetType: parameter-extractor
+      id: route-nearby-extract
+      source: route
+      sourceHandle: nearby
       target: extract
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: question-classifier
+        targetType: llm
+      id: route-general-chat
+      source: route
+      sourceHandle: general
+      target: general_chat
       targetHandle: target
       type: custom
       zIndex: 0
@@ -179,9 +204,21 @@ workflow:
         isInIteration: false
         isInLoop: false
         sourceType: code
-        targetType: llm
-      id: validate-answer-llm
+        targetType: code
+      id: validate-map-cards
       source: validate
+      sourceHandle: source
+      target: map_cards
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: map-cards-explain
+      source: map_cards
       sourceHandle: source
       target: explain
       targetHandle: target
@@ -196,6 +233,18 @@ workflow:
       source: explain
       sourceHandle: source
       target: answer
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: answer
+      id: general-chat-answer
+      source: general_chat
+      sourceHandle: source
+      target: general_answer
       targetHandle: target
       type: custom
       zIndex: 0
@@ -255,6 +304,49 @@ workflow:
         y: 0
       positionAbsolute:
         x: 0
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        classes:
+        - id: nearby
+          name: 附近出行美食
+        - id: general
+          name: 日常问答
+        desc: 先判断是否需要使用定位和高德数据，避免日常问题触发附近检索
+        instruction: |-
+          将用户当前消息严格分为两类：
+
+          1. “附近出行美食”：需要用户定位、附近 POI、地图、路线、餐厅/咖啡/景点/公园/娱乐/购物推荐、行程规划或导航；以及与附近推荐相关的长期偏好查询、记住、忘记和清空。“还是上次那样”、“继续刚才的路线”等承接表达也归入此类。
+
+          2. “日常问答”：闲聊、问候、通识解释、写作、翻译、学习、计算、编程等不需要定位或高德附近数据的问题。
+
+          若问题只是询问某个菜系、城市或景点的一般知识，不要因为出现“美食”或“景点”就归入附近类；只有实际要找地方、规划出行、比较去处或导航时才归入附近类。无法确定时，优先选日常问答，不滥用位置。
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: DeepSeek-V4-Flash-0731
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        query_variable_selector:
+        - sys
+        - query
+        selected: false
+        title: 需求分流
+        type: question-classifier
+        vision:
+          enabled: false
+      height: 183
+      id: route
+      position:
+        x: 342
+        y: 0
+      positionAbsolute:
+        x: 342
         y: 0
       selected: false
       sourcePosition: right
@@ -439,10 +531,10 @@ workflow:
       height: 131
       id: extract
       position:
-        x: 342
+        x: 684
         y: 105.16666666666666
       positionAbsolute:
-        x: 342
+        x: 684
         y: 105.16666666666666
       selected: false
       sourcePosition: right
@@ -1160,10 +1252,106 @@ workflow:
       width: 242
       zIndex: 0
     - data:
+        code: |-
+          import json
+          import re
+          from urllib.parse import urljoin, urlparse
+
+          def main(body, backend_base_url):
+              def safe_text(value, limit=40):
+                  return re.sub(r'[\[\]()`<>\r\n]+', ' ', str(value or '')).strip()[:limit]
+
+              try:
+                  payload = json.loads(body) if isinstance(body, str) else body
+              except (TypeError, ValueError, json.JSONDecodeError):
+                  payload = {}
+              if not isinstance(payload, dict):
+                  return {'visual_cards': ''}
+
+              blocks = []
+              route_path = str(payload.get('route_map_path') or '')
+              base_url = str(backend_base_url or '').rstrip('/') + '/'
+              if route_path.startswith('/api/route-map?') and base_url.startswith('https://'):
+                  map_url = urljoin(base_url, route_path.lstrip('/'))
+                  blocks.extend([
+                      '## 高德位置概览',
+                      f'![附近候选与行程顺序示意]({map_url})',
+                      '> 地图连线只表示行程顺序，不是实际道路轨迹；出发时以高德导航为准。',
+                  ])
+
+              transport = '🚗 驾车' if payload.get('transport') == 'driving' else '🚶 步行'
+              itinerary = payload.get('itinerary') if isinstance(payload.get('itinerary'), list) else []
+              summaries = []
+              for segment in itinerary[:6]:
+                  if not isinstance(segment, dict):
+                      continue
+                  start = safe_text(segment.get('from_name'), 30)
+                  end = safe_text(segment.get('to_name'), 30)
+                  minutes = segment.get('route_duration_minutes') or segment.get('planning_duration_minutes')
+                  distance = segment.get('route_distance_meters')
+                  detail = f'{minutes} 分钟' if isinstance(minutes, (int, float)) else '耗时待确认'
+                  if isinstance(distance, (int, float)):
+                      detail += f'、{round(distance)} 米'
+                  summaries.append(f'- {transport}：{start} → {end}（{detail}）')
+              if summaries:
+                  blocks.extend(['### 路线摘要'] + summaries)
+
+              photos = []
+              places = payload.get('places') if isinstance(payload.get('places'), list) else []
+              for place in places:
+                  if not isinstance(place, dict):
+                      continue
+                  name = safe_text(place.get('name'), 30) or '附近地点'
+                  urls = place.get('image_urls') if isinstance(place.get('image_urls'), list) else []
+                  for raw_url in urls[:1]:
+                      try:
+                          parsed = urlparse(str(raw_url))
+                      except ValueError:
+                          continue
+                      if parsed.scheme == 'https' and parsed.netloc:
+                          photos.append(f'![{name}]({parsed.geturl()})')
+                  if len(photos) >= 3:
+                      break
+              if photos:
+                  blocks.extend(['### 地点图片'] + photos[:3])
+              return {'visual_cards': '\n\n'.join(blocks)}
+        code_language: python3
+        desc: 使用服务端签名地图地址生成确定性的高德地图、路线摘要和地点图片卡片
+        outputs:
+          visual_cards:
+            children: null
+            type: string
+        selected: false
+        title: 生成地图卡片
+        type: code
+        variables:
+        - value_selector:
+          - recommend
+          - body
+          variable: body
+        - value_selector:
+          - env
+          - BACKEND_BASE_URL
+          variable: backend_base_url
+      height: 95
+      id: map_cards
+      position:
+        x: 2394
+        y: 100
+      positionAbsolute:
+        x: 2394
+        y: 100
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
         context:
           enabled: false
           variable_selector: []
-        desc: 按快速选择、对比、单日路线或多日攻略生成可追溯答案
+        desc: 按快速选择、对比、单日路线或多日攻略生成可追溯答案；地图卡片由后续确定性输出追加
         memory:
           query_prompt_template: '{{#sys.query#}}'
           role_prefix:
@@ -1226,6 +1414,8 @@ workflow:
 
             导航链接必须原样使用 navigation_url，并写成：[打开高德导航](URL)。只输出面向用户的最终答案，不得输出思考过程、分析草稿、<think> 标签或 reasoning 内容。
 
+            回答后会由系统追加已校验的高德地图和路线摘要卡片；你不要自行编造、重复或改写地图图片地址。
+
             '
         - id: e877896e-4ec6-49b5-b26c-2d11282f0585
           role: user
@@ -1245,10 +1435,10 @@ workflow:
       height: 131
       id: explain
       position:
-        x: 2394
+        x: 2736
         y: 168.16666666666666
       positionAbsolute:
-        x: 2394
+        x: 2736
         y: 168.16666666666666
       selected: false
       sourcePosition: right
@@ -1257,7 +1447,10 @@ workflow:
       width: 242
       zIndex: 0
     - data:
-        answer: '{{#explain.text#}}'
+        answer: '{{#explain.text#}}
+
+
+          {{#map_cards.visual_cards#}}'
         desc: ''
         selected: false
         title: 回复
@@ -1266,11 +1459,84 @@ workflow:
       height: 101
       id: answer
       position:
-        x: 2736
+        x: 3078
         y: 205
       positionAbsolute:
-        x: 2736
+        x: 3078
         y: 205
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 不调用定位和高德服务，独立处理闲聊、通识、写作、学习等日常问题
+        memory:
+          query_prompt_template: '{{#sys.query#}}'
+          role_prefix:
+            assistant: '助手：'
+            user: '用户：'
+          window:
+            enabled: true
+            size: 12
+        model:
+          completion_params:
+            temperature: 0.35
+          mode: chat
+          name: DeepSeek-V4-Flash-0731
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 5921fbd5-7095-44cb-a2b6-633a6e36a610
+          role: system
+          text: |-
+            你是 NearbyGo 的日常问答助手。当前问题已被分流为不需要定位和高德附近数据的普通问题。
+
+            直接、友好、有用地回答。可以处理问候、闲聊、通识解释、写作、翻译、学习、计算和编程问题。不要提及定位状态，不要调用、伪造或暗示已获取高德 POI、实时路线、营业时间、价格、天气或新闻。对明显需要最新外部信息的问题，坦诚说明当前没有实时查询结果，并告诉用户如何核实。
+
+            如果用户实际上开始询问“附近去哪里”、“怎么走”或要餐厅/景点/行程推荐，简短说明可以继续告诉预算、时间和偏好，下一轮将进入附近推荐。
+
+            输出完整、规范的 Markdown；不使用 HTML，不输出思考过程、<think> 或内部规则。
+        - id: a0e1d608-5c3d-4ce3-997d-9f770d043a74
+          role: user
+          text: '{{#sys.query#}}'
+        selected: false
+        title: 日常问答
+        type: llm
+        vision:
+          enabled: false
+      height: 131
+      id: general_chat
+      position:
+        x: 684
+        y: -220
+      positionAbsolute:
+        x: 684
+        y: -220
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        answer: '{{#general_chat.text#}}'
+        desc: 日常问答直接回复，不展示地图或触发附近服务
+        selected: false
+        title: 日常问答回复
+        type: answer
+        variables: []
+      height: 101
+      id: general_answer
+      position:
+        x: 1026
+        y: -205
+      positionAbsolute:
+        x: 1026
+        y: -205
       selected: false
       sourcePosition: right
       targetPosition: left
