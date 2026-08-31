@@ -35,7 +35,7 @@ def test_dify_dsl_uses_current_canvas_shape():
         for variable in dsl["workflow"]["environment_variables"]
     }
     assert environment_variables["BACKEND_BASE_URL"]["value"] == (
-        "https://nearby-go.onrender.com"
+        "https://nearby-go-2.onrender.com"
     )
     assert environment_variables["INTERNAL_API_TOKEN"]["value"] == ""
     assert environment_variables["INTERNAL_API_TOKEN"]["value_type"] == "secret"

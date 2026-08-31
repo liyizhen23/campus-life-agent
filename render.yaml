@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: nearby-go
+    name: nearby-go-2
     runtime: docker
     plan: free
     region: singapore

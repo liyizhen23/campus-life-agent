@@ -31,7 +31,7 @@ workflow:
     selector:
     - env
     - BACKEND_BASE_URL
-    value: https://nearby-go.onrender.com
+    value: https://nearby-go-2.onrender.com
     value_type: string
   - description: 与后端 INTERNAL_API_TOKEN 完全一致
     id: internal-api-token

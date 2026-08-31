@@ -66,7 +66,7 @@ Docker Compose 会自动读取仓库根目录的 `.env`。至少填写 `DIFY_API
 3. 把 Dify 中的 `INTERNAL_API_TOKEN` 设为与 Render 完全相同的值，然后重新发布 Chatflow。
 4. 打开 Render 服务首页，授权定位和麦克风，分别测试日常问答、附近推荐、地图和语音。
 
-如果已经在 Render 上手动创建了同名 `nearby-go` 服务，可以继续使用它：在 Settings 中保持 Dockerfile Path 为 `backend/Dockerfile`、Docker Build Context 为 `.`、Health Check Path 为 `/api/health`，并补齐上述环境变量后选择 **Manual Deploy → Deploy latest commit**。
+如果已经在 Render 上手动创建了同名 `nearby-go-2` 服务，可以继续使用它：在 Settings 中保持 Dockerfile Path 为 `backend/Dockerfile`、Docker Build Context 为 `.`、Health Check Path 为 `/api/health`，并补齐上述环境变量后选择 **Manual Deploy → Deploy latest commit**。
 
 不使用 Docker：
 
