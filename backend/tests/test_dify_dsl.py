@@ -41,18 +41,27 @@ def test_dify_dsl_uses_current_canvas_shape():
     node_ids = [node["id"] for node in graph["nodes"]]
     assert node_ids == [
         "start",
+        "route",
         "extract",
         "normalize",
         "recommend",
         "validate",
         "explain",
         "answer",
+        "general_chat",
+        "general_answer",
     ]
     assert dsl["workflow"]["conversation_variables"] == []
     assert ("recommend", "validate") in {
         (edge["source"], edge["target"]) for edge in graph["edges"]
     }
     assert ("validate", "explain") in {
+        (edge["source"], edge["target"]) for edge in graph["edges"]
+    }
+    assert ("route", "extract") in {
+        (edge["source"], edge["target"]) for edge in graph["edges"]
+    }
+    assert ("route", "general_chat") in {
         (edge["source"], edge["target"]) for edge in graph["edges"]
     }
 
@@ -112,6 +121,31 @@ def test_dify_uses_short_context_without_long_term_profile_storage():
     assert "memory_action" not in parameter_names
     assert "当前消息永远优先" in extract["data"]["instruction"]
     assert "不能直接复用历史地点结果" in extract["data"]["instruction"]
+
+
+def test_question_classifier_preserves_nearby_and_general_branches():
+    dsl = yaml.safe_load(DSL_PATH.read_text(encoding="utf-8"))
+    graph = dsl["workflow"]["graph"]
+    nodes = {node["id"]: node for node in graph["nodes"]}
+    route = nodes["route"]["data"]
+
+    assert route["type"] == "question-classifier"
+    assert {item["id"] for item in route["classes"]} == {"nearby", "general"}
+    assert "换一个" in route["instruction"]
+    assert "优先选择“附近实时推荐”" in route["instruction"]
+
+    edges = {
+        (edge["source"], edge["sourceHandle"], edge["target"])
+        for edge in graph["edges"]
+    }
+    assert ("route", "nearby", "extract") in edges
+    assert ("route", "general", "general_chat") in edges
+    assert ("general_chat", "source", "general_answer") in edges
+
+    general_prompt = nodes["general_chat"]["data"]["prompt_template"][0]["text"]
+    assert "不需要定位" in general_prompt
+    assert "不要读取、讨论或推断用户位置" in general_prompt
+    assert "不建立长期用户画像" in general_prompt
 
 
 def test_normalizer_preserves_meal_and_activity_intent_and_duration():

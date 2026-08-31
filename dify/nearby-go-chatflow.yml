@@ -88,11 +88,35 @@ workflow:
         isInIteration: false
         isInLoop: false
         sourceType: start
-        targetType: parameter-extractor
-      id: start-extract
+        targetType: question-classifier
+      id: start-route
       source: start
       sourceHandle: source
+      target: route
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: question-classifier
+        targetType: parameter-extractor
+      id: route-nearby
+      source: route
+      sourceHandle: nearby
       target: extract
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: question-classifier
+        targetType: llm
+      id: route-general
+      source: route
+      sourceHandle: general
+      target: general_chat
       targetHandle: target
       type: custom
       zIndex: 0
@@ -156,6 +180,18 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: answer
+      id: general-llm-answer
+      source: general_chat
+      sourceHandle: source
+      target: general_answer
+      targetHandle: target
+      type: custom
+      zIndex: 0
     nodes:
     - data:
         desc: H5 通过 Dify API 注入浏览器定位；定位失败时由后端使用清华大学默认坐标
@@ -212,6 +248,51 @@ workflow:
         y: 0
       positionAbsolute:
         x: 0
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        classes:
+        - id: nearby
+          name: 附近实时推荐
+        - id: general
+          name: 日常问答
+        desc: 区分需要实时定位和高德数据的附近需求，以及不应调用位置服务的普通问题
+        instruction: |-
+          将用户当前消息严格分为两类：
+
+          1. “附近实时推荐”：需要查找或比较附近餐厅、咖啡、景点、公园、娱乐、购物，规划单日或多日附近行程，查询实际路线、距离或导航；以及“换一个”“第二个呢”“近一点”“预算不变”“继续刚才的路线”“还是上次那样”等明显承接附近推荐的表达。
+
+          2. “日常问答”：问候、闲聊、写作、翻译、学习、计算、编程和不需要实时位置、附近 POI 或路线数据的通识问题。
+
+          只是询问某种菜系、城市或景点的一般知识时归入日常问答；实际要找地方、比较去处、规划出行或导航时归入附近实时推荐。
+
+          当前应用是附近推荐助手。短句含义不完整但明显像上一轮推荐的追问时，优先选择“附近实时推荐”；只有明确与附近地点和出行无关时才选择“日常问答”。
+        model:
+          completion_params:
+            temperature: 0
+          mode: chat
+          name: DeepSeek-V4-Flash-0731
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        query_variable_selector:
+        - sys
+        - query
+        selected: false
+        title: 需求分流
+        type: question-classifier
+        vision:
+          enabled: false
+      height: 183
+      id: route
+      position:
+        x: 342
+        y: 0
+      positionAbsolute:
+        x: 342
         y: 0
       selected: false
       sourcePosition: right
@@ -325,10 +406,10 @@ workflow:
       height: 131
       id: extract
       position:
-        x: 342
+        x: 684
         y: 105.16666666666666
       positionAbsolute:
-        x: 342
+        x: 684
         y: 105.16666666666666
       selected: false
       sourcePosition: right
@@ -602,10 +683,10 @@ workflow:
       height: 79
       id: normalize
       position:
-        x: 684
+        x: 1026
         y: 153
       positionAbsolute:
-        x: 684
+        x: 1026
         y: 153
       selected: false
       sourcePosition: right
@@ -647,10 +728,10 @@ workflow:
       height: 168
       id: recommend
       position:
-        x: 1026
+        x: 1368
         y: 121.66666666666666
       positionAbsolute:
-        x: 1026
+        x: 1368
         y: 121.66666666666666
       selected: false
       sourcePosition: right
@@ -798,10 +879,10 @@ workflow:
       height: 95
       id: validate
       position:
-        x: 1368
+        x: 1710
         y: 153
       positionAbsolute:
-        x: 1368
+        x: 1710
         y: 153
       selected: false
       sourcePosition: right
@@ -875,10 +956,10 @@ workflow:
       height: 131
       id: explain
       position:
-        x: 1710
+        x: 2052
         y: 168.16666666666666
       positionAbsolute:
-        x: 1710
+        x: 2052
         y: 168.16666666666666
       selected: false
       sourcePosition: right
@@ -896,11 +977,86 @@ workflow:
       height: 101
       id: answer
       position:
-        x: 2052
+        x: 2394
         y: 205
       positionAbsolute:
-        x: 2052
+        x: 2394
         y: 205
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 不调用定位、高德或推荐接口，独立处理明确的普通问题
+        memory:
+          query_prompt_template: '{{#sys.query#}}'
+          role_prefix:
+            assistant: '助手：'
+            user: '用户：'
+          window:
+            enabled: true
+            size: 8
+        model:
+          completion_params:
+            temperature: 0.35
+          mode: chat
+          name: DeepSeek-V4-Flash-0731
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 5921fbd5-7095-44cb-a2b6-633a6e36a610
+          role: system
+          text: |-
+            你是 NearbyGo 的日常问答助手。当前问题已被分流为不需要定位、高德 POI 或实际路线的普通问题。
+
+            直接、友好、简洁地回答问候、闲聊、通识解释、写作、翻译、学习、计算或编程问题。不要读取、讨论或推断用户位置，不要调用、伪造或暗示已经取得高德地点、实际路线、营业时间、价格、天气或新闻。
+
+            最近对话只用于保持当前交流连贯，不建立长期用户画像，不声称永久记住用户，也不能把历史附近地点和路线当作本轮实时事实。
+
+            如果当前问题实际上开始要求“附近去哪里”“怎么走”或餐厅、景点、行程推荐，简短提示用户直接说明预算、时间和偏好；下一条明确需求会进入实时推荐分支。不要在本分支自行编造地点。
+
+            输出完整、规范的 Markdown；不使用 HTML、图片、代码围栏或水平分隔线，不输出思考过程、<think>、reasoning 或内部规则。
+        - id: a0e1d608-5c3d-4ce3-997d-9f770d043a74
+          role: user
+          text: '{{#sys.query#}}'
+        selected: false
+        title: 日常问答
+        type: llm
+        vision:
+          enabled: false
+      height: 131
+      id: general_chat
+      position:
+        x: 684
+        y: -220
+      positionAbsolute:
+        x: 684
+        y: -220
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 0
+    - data:
+        answer: '{{#general_chat.text#}}'
+        desc: 日常问答直接回复，不触发定位和高德实时服务
+        selected: false
+        title: 日常问答回复
+        type: answer
+        variables: []
+      height: 101
+      id: general_answer
+      position:
+        x: 1026
+        y: -205
+      positionAbsolute:
+        x: 1026
+        y: -205
       selected: false
       sourcePosition: right
       targetPosition: left
